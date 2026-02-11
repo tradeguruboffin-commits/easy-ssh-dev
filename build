@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# Configuration
+BINARY_NAME="sshx"
+SOURCE_FILE="main.go"
+SHELL_SCRIPT="sshx"
+OUTPUT_DIR="./bin"
+
+# Colors for professional output
+GREEN="\e[32m"; BLUE="\e[34m"; RED="\e[31m"; NC="\e[0m"; BOLD="\e[1m"
+
+echo -e "${BLUE}${BOLD}📦 Initializing Build Process...${NC}"
+
+# 1. Validation: Check if required files exist
+if [ ! -f "$SOURCE_FILE" ] || [ ! -f "$SHELL_SCRIPT" ]; then
+    echo -e "${RED}❌ Error: main.go or sshx not found!${NC}"
+    exit 1
+fi
+
+# 2. Create bin directory if it doesn't exist
+if [ ! -d "$OUTPUT_DIR" ]; then
+    echo -e "${BLUE}📁 Creating bin directory...${NC}"
+    mkdir -p "$OUTPUT_DIR"
+fi
+
+# 3. Go Module Setup
+if [ ! -f "go.mod" ]; then
+    echo -e "${BLUE}⚙️ Initializing Go module...${NC}"
+    go mod init github.com/sumit/sshx &>/dev/null
+    go mod tidy &>/dev/null
+fi
+
+# 4. Build ARM64 Binary directly to /bin/sshx
+echo -e "${BLUE}🔨 Compiling ARM64 binary to ${OUTPUT_DIR}/${BINARY_NAME}...${NC}"
+
+GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o "${OUTPUT_DIR}/${BINARY_NAME}" "$SOURCE_FILE"
+
+# 5. Result Check
+if [ -f "${OUTPUT_DIR}/${BINARY_NAME}" ]; then
+    echo -e "\n${GREEN}${BOLD}✅ BUILD SUCCESSFUL!${NC}"
+    echo -e "----------------------------------------"
+    
+    # 6. Metrics Calculation
+    BIN_SIZE=$(du -h "${OUTPUT_DIR}/${BINARY_NAME}" | cut -f1)
+    
+    echo -e "📊 ${BOLD}Build Summary:${NC}"
+    echo -e "   Platform:  Linux ARM64"
+    echo -e "   Location:  ${OUTPUT_DIR}/${BINARY_NAME}"
+    echo -e "   Size:      $BIN_SIZE"
+    echo -e "----------------------------------------"
+    
+    echo -e "🧪 ${BOLD}Execution Command:${NC}"
+    echo -e "   ${OUTPUT_DIR}/${BINARY_NAME} --version"
+    
+    echo -e "\n📦 ${BOLD}Global Installation:${NC}"
+    echo -e "   sudo cp ${OUTPUT_DIR}/${BINARY_NAME} /usr/local/bin/"
+    echo "----------------------------------------"
+else
+    echo -e "${RED}❌ Build failed! Please check your Go installation.${NC}"
+    exit 1
+fi

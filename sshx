@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# =========================================================
+# sshx v1.1 — Simple SSH Manager
+# Author: Sumit
+# =========================================================
+
+VERSION="1.1"
+CACHE="$HOME/.ssh/sshx.json"
+KEY="$HOME/.ssh/id_ed25519"
+
+GREEN="\e[32m"; RED="\e[31m"; YELLOW="\e[33m"; BLUE="\e[34m"; NC="\e[0m"
+
+die() { echo -e "${RED}❌ $1${NC}"; exit 1; }
+ok()  { echo -e "${GREEN}✅ $1${NC}"; }
+warn(){ echo -e "${YELLOW}⚠️ $1${NC}"; }
+info(){ echo -e "${BLUE}ℹ️ $1${NC}"; }
+
+need() { command -v "$1" &>/dev/null || die "$1 not installed"; }
+
+# ================= INIT =================
+init() {
+  mkdir -p ~/.ssh
+  [ -f "$CACHE" ] || echo "{}" > "$CACHE"
+
+  if [ ! -f "$KEY" ]; then
+    info "Generating SSH key..."
+    ssh-keygen -t ed25519 -f "$KEY" -N "" || die "Keygen failed"
+  fi
+
+  chmod 600 "$KEY" 2>/dev/null && ok "Key permission fixed (600)"
+}
+
+# ================= PARSE =================
+parse() {
+  if [[ "$1" == *"@"*":"* ]]; then
+    USER="${1%@*}"
+    HOSTPORT="${1#*@}"
+    HOST="${HOSTPORT%:*}"
+    PORT="${HOSTPORT##*:}"
+  else
+    [[ -z "$1" || -z "$2" || -z "$3" ]] && die "Invalid format. Use: user@ip:port"
+    USER="$1"; HOST="$2"; PORT="$3"
+  fi
+}
+
+# ================= CACHE =================
+exists() {
+  jq -e "has(\"$USER@$HOST:$PORT\")" "$CACHE" >/dev/null 2>&1
+}
+
+connect() {
+  if ! exists; then
+      info "First time connecting — testing connection and copying key if needed..."
+      timeout 5 ssh -o ConnectTimeout=5 -p "$PORT" "$USER@$HOST" exit 2>/dev/null \
+        || warn "Password may be required for initial connection"
+
+      # Copy key automatically
+      ssh-copy-id -i "$KEY.pub" -o StrictHostKeyChecking=no -p "$PORT" "$USER@$HOST" \
+        || warn "Key copy failed; you may need to enter password manually"
+
+      # Save to cache
+      jq ". + {\"$USER@$HOST:$PORT\": {user:\"$USER\",host:\"$HOST\",port:$PORT}}" \
+        "$CACHE" > "$CACHE.tmp" && mv "$CACHE.tmp" "$CACHE"
+      ok "Host registered and key copied (if possible)"
+  fi
+
+  info "Connecting to $USER@$HOST:$PORT …"
+  exec ssh -p "$PORT" "$USER@$HOST"
+}
+
+remove() {
+  exists || die "Entry not found"
+
+  # Remove host from known_hosts and known_hosts.old
+  KH_ENTRY="[$HOST]:$PORT"
+  for KH in "$HOME/.ssh/known_hosts" "$HOME/.ssh/known_hosts.old"; do
+      [ -f "$KH" ] || continue
+      grep -v "^$KH_ENTRY " "$KH" > "$KH.tmp" && mv "$KH.tmp" "$KH"
+  done
+  ok "Removed known_host: $KH_ENTRY from known_hosts & known_hosts.old"
+
+  # Remove from sshx cache
+  jq "del(.\"$USER@$HOST:$PORT\")" "$CACHE" > "$CACHE.tmp" && mv "$CACHE.tmp" "$CACHE"
+  ok "Removed entry from sshx cache"
+}
+
+list() {
+  jq -r 'keys[]' "$CACHE" 2>/dev/null || echo "(empty)"
+}
+
+fzf_menu() {
+  need fzf
+  sel=$(list | fzf --prompt="SSH > ")
+  [ -z "$sel" ] && exit 0
+  sshx "$sel"
+}
+
+doctor() {
+  echo "sshx v$VERSION"
+  need ssh
+  need jq
+  command -v fzf &>/dev/null && ok "fzf installed" || warn "fzf missing"
+  [ -f "$KEY" ] && ok "SSH key exists" || warn "SSH key missing"
+  stat -c "%a" "$KEY" 2>/dev/null | grep -q 600 && ok "Key permission OK" || warn "Fix key permission"
+}
+
+help() {
+cat <<EOF
+sshx v$VERSION — Simple SSH Manager
+
+USAGE:
+  sshx user@ip:port             Connect (passwordless or first-time with password)
+  sshx user@ip:port --remove    Remove host entry
+
+OTHER:
+  sshx --list                   List saved hosts
+  sshx --menu                   fzf interactive menu
+  sshx --doctor                 Self check
+  sshx --version | -v
+  sshx --help | -h
+EOF
+}
+
+# ================= MAIN =================
+init
+
+[[ $# -eq 0 ]] && { help; exit 0; }
+
+case "$1" in
+  --help|-h|help) help ;;
+  --version|-v|version) echo "sshx v$VERSION" ;;
+  --list) list ;;
+  --menu) fzf_menu ;;
+  --doctor) doctor ;;
+  *)
+    if [[ ! "$1" =~ ^.+@.+:.+$ ]]; then
+      die "❌ Invalid format. Use: user@ip:port"
+    fi
+
+    parse "$1"
+    case "$2" in
+      --remove) remove ;;
+      ""|--) connect ;;
+      *) help ;;
+    esac
+  ;;
+esac

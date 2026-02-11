@@ -9,7 +9,7 @@ import (
 	"runtime"
 )
 
-//go:embed sshx.sh
+//go:embed sshx
 var scriptContent string
 
 // Binary Metadata
