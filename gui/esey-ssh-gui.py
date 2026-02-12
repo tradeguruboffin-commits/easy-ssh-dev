@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 import tkinter as tk
 from tkinter import ttk
-import pty, os, threading, select, re, signal
-import sys
+import pty, os, threading, select, re, signal, sys
 
 ANSI_ESCAPE = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
 
@@ -36,7 +35,11 @@ class TerminalTab:
         )
         self.text.pack(fill="both", expand=True)
 
+        # Key bindings
         self.text.bind("<Key>", self.send_input)
+        self.text.bind("<Return>", self.send_input)
+        self.text.bind("<BackSpace>", self.send_input)
+        self.text.bind("<Delete>", self.send_input)
         self.text.bind("<Configure>", self.on_resize)
 
         # Terminal shortcuts
@@ -58,7 +61,6 @@ class TerminalTab:
             os.environ["TERM"] = "xterm"
             os.environ["PS1"] = "$ "
             if cmd:
-                # Ensure executable permission
                 try:
                     os.chmod(cmd[0], 0o755)
                 except:
@@ -88,8 +90,16 @@ class TerminalTab:
                 break
 
     def send_input(self, event):
-        if event.char:
+        if event.char and ord(event.char) >= 32:
             os.write(self.fd, event.char.encode())
+        else:
+            if event.keysym == "Return":
+                os.write(self.fd, b"\n")
+            elif event.keysym == "BackSpace":
+                os.write(self.fd, b"\x7f")
+            elif event.keysym == "Delete":
+                os.write(self.fd, b"\x1b[3~")
+        return "break"
 
     def send_ctrl_c(self, event=None):
         try:
@@ -150,17 +160,9 @@ class SSHXGUI(tk.Tk):
         top.pack(fill="x")
         top.pack_propagate(False)
 
-        tk.Label(
-            top,
-            text="SSHX Control Panel",
-            font=("Arial", 36)
-        ).pack(side="left", padx=40)
+        tk.Label(top, text="SSHX Control Panel", font=("Arial", 36)).pack(side="left", padx=40)
 
-        self.entry = tk.Entry(
-            top,
-            font=("Arial", 28),
-            width=35
-        )
+        self.entry = tk.Entry(top, font=("Arial", 28), width=35)
         self.entry.pack(side="right", padx=40)
 
         # Right Click + Ctrl Copy/Paste
@@ -173,10 +175,7 @@ class SSHXGUI(tk.Tk):
         menu.add_command(label="Paste", command=lambda: self.entry.event_generate("<<Paste>>"))
         menu.add_command(label="Select All", command=lambda: self.entry.select_range(0, 'end'))
 
-        def show_menu(event):
-            menu.tk_popup(event.x_root, event.y_root)
-
-        self.entry.bind("<Button-3>", show_menu)
+        self.entry.bind("<Button-3>", lambda e: menu.tk_popup(e.x_root, e.y_root))
 
     def build_buttons(self):
         bar = tk.Frame(self)
@@ -195,14 +194,7 @@ class SSHXGUI(tk.Tk):
         ]
 
         for i, (text, cmd) in enumerate(buttons):
-            btn = tk.Button(
-                bar,
-                text=text,
-                command=cmd,
-                font=("Arial", 20),
-                width=16,
-                height=2
-            )
+            btn = tk.Button(bar, text=text, command=cmd, font=("Arial", 20), width=16, height=2)
             btn.grid(row=i//5, column=i%5, padx=20, pady=15)
 
     def build_notebook(self):
@@ -253,5 +245,8 @@ class SSHXGUI(tk.Tk):
                 tab.close()
             self.notebook.forget(current)
 
+# -----------------------------
+# Run GUI
+# -----------------------------
 if __name__ == "__main__":
     SSHXGUI().mainloop()
