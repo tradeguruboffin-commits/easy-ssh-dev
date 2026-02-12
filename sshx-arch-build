@@ -4,7 +4,9 @@
 # Author: Sumit
 # =========================================================
 
-set -e
+set -Eeuo pipefail
+
+trap 'rc=$?; echo "❌ Error on line $LINENO. Exit code: $rc"; exit $rc' ERR
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUI="$PROJECT_ROOT/gui"
@@ -53,6 +55,7 @@ echo "✅ All required dependencies found."
 
 echo "🧹 Removing old binaries..."
 
+mkdir -p "$BIN"
 rm -f "$BIN/sshx" \
       "$BIN/sshx-dev" \
       "$GUI/sshx-gui" \
@@ -93,20 +96,26 @@ cd "$LIB"
 
 echo "📦 Moving built binaries..."
 
-mv "$GUI/dist/sshx-gui" "$GUI/"
+mv -f "$GUI/dist/sshx-gui" "$GUI/" 2>/dev/null || true
+
 rm -rf "$GUI/dist" "$GUI/build" "$GUI/sshx-gui.spec"
 
-mv "$LIB/dist/sshx-reset" "$LIB/"
+mv -f "$LIB/dist/sshx-reset" "$LIB/" 2>/dev/null || true
+
 rm -rf "$LIB/dist" "$LIB/build" "$LIB/sshx-reset.spec"
 
 # ---------------- Cleanup ----------------
 
 echo "🧼 Cleaning virtual environment..."
 
-deactivate
+deactivate 2>/dev/null || true
 rm -rf "$PROJECT_ROOT/.venv"
 
 echo ""
 echo "✅ Clean portable build successful!"
 echo ""
-tree "$PROJECT_ROOT"
+if command -v tree >/dev/null 2>&1; then
+  tree "$PROJECT_ROOT"
+else
+  echo "📁 Build complete."
+fi
