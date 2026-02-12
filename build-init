@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="sshx-cli"
+APP_NAME="sshx-dev"
 SOURCE_FILE="init.go"
 OUTPUT_DIR="./bin"
 OUTPUT_BIN="$OUTPUT_DIR/$APP_NAME"

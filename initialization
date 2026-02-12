@@ -28,6 +28,9 @@ error() { echo -e "${RED}✘ $1${NC}"; exit 1; }
 install() {
     log "🚀 Installing esey-ssh-dev..."
 
+    # -----------------------------
+    # Link binaries
+    # -----------------------------
     for bin in "${BINARIES[@]}"; do
         SRC="$BASE_DIR/$bin"
         NAME="$(basename "$bin")"
@@ -44,12 +47,53 @@ install() {
         ok "$NAME linked → $DEST"
     done
 
+    # -----------------------------
+    # Desktop Entry Handling
+    # -----------------------------
+    DESKTOP_DIR="$HOME/.local/share/applications"
+    mkdir -p "$DESKTOP_DIR"
+    DESKTOP_FILE="$DESKTOP_DIR/sshx-gui.desktop"
+
+    # Remove existing desktop entry if exists
+    if [[ -f "$DESKTOP_FILE" ]]; then
+        rm -f "$DESKTOP_FILE"
+        ok "Old desktop entry removed"
+    fi
+
+    # Detect portable icon
+    ICON_PATH="$BASE_DIR/bin/ssh-terminal.png"
+    if [[ ! -f "$ICON_PATH" ]]; then
+        echo "Warning: Icon not found, desktop entry will not use custom icon"
+        ICON_PATH=""
+    fi
+
+    cat > "$DESKTOP_FILE" <<EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=SSHX
+Comment=SSH GUI Manager for QEMU / VMs
+Exec=sshx-gui
+Icon=$ICON_PATH
+Terminal=false
+Categories=System;Network;
+StartupNotify=true
+Path=$BASE_DIR
+EOF
+
+    chmod +x "$DESKTOP_FILE"
+
+    # Refresh desktop database (optional but good practice)
+    update-desktop-database "$DESKTOP_DIR" >/dev/null 2>&1 || true
+
+    ok "Desktop entry created → $DESKTOP_FILE"
     ok "Installation complete 🎉"
 }
 
 uninstall() {
     log "🗑 Uninstalling esey-ssh-dev..."
 
+    # Remove linked binaries
     for bin in "${BINARIES[@]}"; do
         NAME="$(basename "$bin")"
         DEST="$TARGET_DIR/$NAME"
@@ -61,6 +105,15 @@ uninstall() {
             echo "$NAME not found in $TARGET_DIR"
         fi
     done
+
+    # Remove desktop entry
+    DESKTOP_FILE="$HOME/.local/share/applications/sshx-gui.desktop"
+    if [[ -f "$DESKTOP_FILE" ]]; then
+        rm -f "$DESKTOP_FILE"
+        ok "Desktop entry removed"
+    fi
+
+    update-desktop-database "$HOME/.local/share/applications" >/dev/null 2>&1 || true
 
     ok "Uninstall complete ✅"
 }
@@ -76,8 +129,8 @@ case "${1:-}" in
         ;;
     *)
         echo "Usage:"
-        echo "  ./sshx-cli install"
-        echo "  ./sshx-cli uninstall"
+        echo "  $0 install"
+        echo "  $0 uninstall"
         exit 1
         ;;
 esac
