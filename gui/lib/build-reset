@@ -1,0 +1,14 @@
+#!/bin/bash
+# build-py.sh - PyInstaller script equivalent
+
+echo "🚀 Building Python binary..."
+
+# Single file optimized
+pyinstaller --onefile \
+            --name sshx-reset \
+            --strip \
+            --clean \
+            sshx-reset.py
+
+echo "✅ Build complete! dist/sshx-reset ready"
+echo "💡 Test: ./dist/sshx-reset"

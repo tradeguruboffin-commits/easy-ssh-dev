@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ==========================================================
+#  esey-ssh-dev Portable Installer
+# ==========================================================
+
+# Detect project root automatically
+SCRIPT_PATH="$(readlink -f "$0")"
+BASE_DIR="$(dirname "$SCRIPT_PATH")"
+
+TARGET_DIR="/usr/local/bin"
+
+BINARIES=(
+    "bin/sshx"
+    "gui/lib/sshx-reset"
+    "gui/lib/git-auth"
+    "gui/sshx-gui"
+)
+
+# Colors
+GREEN="\e[32m"; BLUE="\e[34m"; RED="\e[31m"; NC="\e[0m"; BOLD="\e[1m"
+
+log()   { echo -e "${BLUE}${BOLD}$1${NC}"; }
+ok()    { echo -e "${GREEN}✔ $1${NC}"; }
+error() { echo -e "${RED}✘ $1${NC}"; exit 1; }
+
+install() {
+    log "🚀 Installing esey-ssh-dev..."
+
+    for bin in "${BINARIES[@]}"; do
+        SRC="$BASE_DIR/$bin"
+        NAME="$(basename "$bin")"
+        DEST="$TARGET_DIR/$NAME"
+
+        [[ -f "$SRC" ]] || error "Missing binary: $SRC"
+
+        if [[ -e "$DEST" || -L "$DEST" ]]; then
+            echo "Removing existing $DEST"
+            sudo rm -f "$DEST"
+        fi
+
+        sudo ln -s "$SRC" "$DEST"
+        ok "$NAME linked → $DEST"
+    done
+
+    ok "Installation complete 🎉"
+}
+
+uninstall() {
+    log "🗑 Uninstalling esey-ssh-dev..."
+
+    for bin in "${BINARIES[@]}"; do
+        NAME="$(basename "$bin")"
+        DEST="$TARGET_DIR/$NAME"
+
+        if [[ -e "$DEST" || -L "$DEST" ]]; then
+            sudo rm -f "$DEST"
+            ok "$NAME removed"
+        else
+            echo "$NAME not found in $TARGET_DIR"
+        fi
+    done
+
+    ok "Uninstall complete ✅"
+}
+
+# ===================== CLI =====================
+
+case "${1:-}" in
+    install)
+        install
+        ;;
+    uninstall)
+        uninstall
+        ;;
+    *)
+        echo "Usage:"
+        echo "  ./sshx-cli install"
+        echo "  ./sshx-cli uninstall"
+        exit 1
+        ;;
+esac

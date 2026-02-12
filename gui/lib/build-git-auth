@@ -1,0 +1,27 @@
+#!/bin/bash
+# build-git-auth.sh - Clean git-auth binary builder (Plain text)
+
+set -e
+
+echo "🚀 Building git-auth binary..."
+echo "📦 Using -ldflags "-s -w" for smaller size"
+
+# Build optimized binary
+go build -ldflags="-s -w" -o git-auth git-auth.go
+
+# Fix size calculation & comparison
+before=$(stat -c%s main.go 2>/dev/null || ls -l main.go | awk '{print $5}')
+after=$(ls -l git-auth | awk '{print $5}')
+
+echo "✅ Build successful!"
+echo "📊 main.go: ${before}B → git-auth: ${after}B"
+echo "💾 Size: $(printf "%.1f%%" $(( (before*2-after)*100 / (before*2) )))% smaller"
+
+echo "🎉 git-auth binary ready!"
+echo "💡 Test: ./git-auth"
+echo "💡 Move: mv git-auth ~/bin/"
+
+# Quick test
+echo
+echo "🔍 Testing SSH..."
+./git-auth 2>&1 | head -3
