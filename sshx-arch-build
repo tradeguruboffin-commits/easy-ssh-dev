@@ -1,0 +1,112 @@
+#!/usr/bin/env bash
+# =========================================================
+# esey-ssh-dev — Portable Arch Aware Clean Build Script
+# Author: Sumit
+# =========================================================
+
+set -e
+
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GUI="$PROJECT_ROOT/gui"
+LIB="$GUI/lib"
+BIN="$PROJECT_ROOT/bin"
+
+echo "📁 Project root: $PROJECT_ROOT"
+
+echo "🔎 Detecting architecture..."
+ARCH=$(uname -m)
+echo "Architecture: $ARCH"
+
+# ---------------- Dependency Check ----------------
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "❌ $1 not installed."
+    exit 1
+  }
+}
+
+echo "📦 Checking build dependencies..."
+
+need go
+need python3
+need pip3
+
+# venv check
+python3 -m venv --help >/dev/null 2>&1 || {
+  echo "❌ python3-venv not installed."
+  exit 1
+}
+
+# tkinter check
+python3 - <<EOF >/dev/null 2>&1
+import tkinter
+EOF
+if [ $? -ne 0 ]; then
+  echo "❌ python3-tk not installed."
+  exit 1
+fi
+
+echo "✅ All required dependencies found."
+
+# ---------------- Clean Old Binaries ----------------
+
+echo "🧹 Removing old binaries..."
+
+rm -f "$BIN/sshx" \
+      "$BIN/sshx-dev" \
+      "$GUI/sshx-gui" \
+      "$LIB/git-auth" \
+      "$LIB/sshx-reset"
+
+# ---------------- Build Go Binaries ----------------
+
+echo "🚀 Building Go binaries..."
+
+cd "$PROJECT_ROOT"
+./build-sshx
+./build-init
+
+cd "$LIB"
+./build-git-auth
+
+# ---------------- Python Build ----------------
+
+echo "🐍 Creating virtual environment..."
+
+cd "$PROJECT_ROOT"
+python3 -m venv .venv
+source .venv/bin/activate
+
+pip install --upgrade pip
+pip install pyinstaller
+
+echo "🖥 Building GUI..."
+cd "$GUI"
+./build-gui
+
+echo "🔁 Building reset helper..."
+cd "$LIB"
+./build-reset
+
+# ---------------- Move Built Files ----------------
+
+echo "📦 Moving built binaries..."
+
+mv "$GUI/dist/sshx-gui" "$GUI/"
+rm -rf "$GUI/dist" "$GUI/build" "$GUI/sshx-gui.spec"
+
+mv "$LIB/dist/sshx-reset" "$LIB/"
+rm -rf "$LIB/dist" "$LIB/build" "$LIB/sshx-reset.spec"
+
+# ---------------- Cleanup ----------------
+
+echo "🧼 Cleaning virtual environment..."
+
+deactivate
+rm -rf "$PROJECT_ROOT/.venv"
+
+echo ""
+echo "✅ Clean portable build successful!"
+echo ""
+tree "$PROJECT_ROOT"
