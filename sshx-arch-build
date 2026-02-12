@@ -8,6 +8,8 @@ set -Eeuo pipefail
 
 trap 'rc=$?; echo "❌ Error on line $LINENO. Exit code: $rc"; exit $rc' ERR
 
+IFS=$'\n\t'
+
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUI="$PROJECT_ROOT/gui"
 LIB="$GUI/lib"
@@ -41,10 +43,10 @@ python3 -m venv --help >/dev/null 2>&1 || {
 }
 
 # tkinter check
-python3 - <<EOF >/dev/null 2>&1
+if ! python3 - <<EOF >/dev/null 2>&1
 import tkinter
 EOF
-if [ $? -ne 0 ]; then
+then
   echo "❌ python3-tk not installed."
   exit 1
 fi
@@ -78,31 +80,32 @@ cd "$LIB"
 echo "🐍 Creating virtual environment..."
 
 cd "$PROJECT_ROOT"
+rm -rf .venv
 python3 -m venv .venv
 source .venv/bin/activate
 
-pip install --upgrade pip
-pip install pyinstaller
-
-echo "🖥 Building GUI..."
-cd "$GUI"
-./build-gui
+pip install --upgrade pip pyinstaller
 
 echo "🔁 Building reset helper..."
 cd "$LIB"
 ./build-reset
 
-# ---------------- Move Built Files ----------------
-
-echo "📦 Moving built binaries..."
-
-mv -f "$GUI/dist/sshx-gui" "$GUI/" 2>/dev/null || true
-
-rm -rf "$GUI/dist" "$GUI/build" "$GUI/sshx-gui.spec"
-
+echo "📦 Moving helper binaries..."
 mv -f "$LIB/dist/sshx-reset" "$LIB/" 2>/dev/null || true
-
 rm -rf "$LIB/dist" "$LIB/build" "$LIB/sshx-reset.spec"
+
+if [[ ! -f "$LIB/sshx-reset" ]]; then
+  echo "❌ sshx-reset missing. GUI cannot build."
+  exit 1
+fi
+
+echo "🖥 Building GUI..."
+cd "$GUI"
+./build-gui
+
+echo "📦 Moving gui binaries..."
+mv -f "$GUI/dist/sshx-gui" "$GUI/" 2>/dev/null || true
+rm -rf "$GUI/dist" "$GUI/build" "$GUI/sshx-gui.spec"
 
 # ---------------- Cleanup ----------------
 
@@ -111,11 +114,37 @@ echo "🧼 Cleaning virtual environment..."
 deactivate 2>/dev/null || true
 rm -rf "$PROJECT_ROOT/.venv"
 
-echo ""
-echo "✅ Clean portable build successful!"
-echo ""
 if command -v tree >/dev/null 2>&1; then
   tree "$PROJECT_ROOT"
 else
   echo "📁 Build complete."
 fi
+
+echo ""
+echo "🔍 Verifying build artifacts..."
+
+artifacts=(
+  "$BIN/sshx"
+  "$BIN/sshx-dev"
+  "$GUI/sshx-gui"
+  "$LIB/git-auth"
+  "$LIB/sshx-reset"
+)
+
+for file in "${artifacts[@]}"; do
+  if [[ ! -f "$file" ]]; then
+    echo "❌ Missing artifact: $file"
+    exit 1
+  fi
+
+  if [[ ! -s "$file" ]]; then
+    echo "❌ Artifact exists but empty: $file"
+    exit 1
+  fi
+done
+
+echo ""
+echo "✅ All build artifacts verified."
+echo ""
+echo "✅ Clean portable build successful!"
+echo ""

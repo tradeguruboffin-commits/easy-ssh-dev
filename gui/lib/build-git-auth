@@ -1,27 +1,32 @@
 #!/bin/bash
-# build-git-auth.sh - Clean git-auth binary builder (Plain text)
+# build-git-auth.sh - Optimized Go binary builder
 
 set -e
 
-echo "🚀 Building git-auth binary..."
-echo "📦 Using -ldflags "-s -w" for smaller size"
+SOURCE_FILE="git-auth.go"
+BINARY_NAME="git-auth"
 
-# Build optimized binary
-go build -ldflags="-s -w" -o git-auth git-auth.go
+if [ ! -f "$SOURCE_FILE" ]; then
+    echo "❌ Error: $SOURCE_FILE found manually check your directory."
+    exit 1
+fi
 
-# Fix size calculation & comparison
-before=$(stat -c%s main.go 2>/dev/null || ls -l main.go | awk '{print $5}')
-after=$(ls -l git-auth | awk '{print $5}')
+echo "🚀 Building $BINARY_NAME binary..."
+echo "📦 Using -ldflags '-s -w' for smaller size"
+
+before=$(stat -c%s "$SOURCE_FILE")
+
+go build -ldflags="-s -w" -o "$BINARY_NAME" "$SOURCE_FILE"
+
+after=$(stat -c%s "$BINARY_NAME")
 
 echo "✅ Build successful!"
-echo "📊 main.go: ${before}B → git-auth: ${after}B"
-echo "💾 Size: $(printf "%.1f%%" $(( (before*2-after)*100 / (before*2) )))% smaller"
+echo "📊 $SOURCE_FILE: ${before}B → $BINARY_NAME: ${after}B"
 
-echo "🎉 git-auth binary ready!"
-echo "💡 Test: ./git-auth"
-echo "💡 Move: mv git-auth ~/bin/"
+reduction=$(awk "BEGIN {pc=($before-$after)*100/$before; printf \"%.1f\", pc}")
 
-# Quick test
-echo
-echo "🔍 Testing SSH..."
-./git-auth 2>&1 | head -3
+echo "💾 Size: ${reduction}% smaller (Compression via stripping)"
+echo "---"
+echo "🎉 $BINARY_NAME binary ready!"
+echo "💡 Test: ./$BINARY_NAME"
+echo "💡 Move: mv $BINARY_NAME ~/bin/"
