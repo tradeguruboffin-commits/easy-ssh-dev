@@ -1,7 +1,7 @@
 #!/bin/bash
 # =========================================================
 # GitHub SSH Key Setup - Non-Interactive, Portable Version
-# Author: Sumit (Modified for automation)
+# Author: Sumit
 # =========================================================
 
 set -euo pipefail
