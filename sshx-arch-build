@@ -60,6 +60,7 @@ echo "🧹 Removing old binaries..."
 mkdir -p "$BIN"
 rm -f "$BIN/sshx" \
       "$BIN/sshx-dev" \
+      "$BIN/sshx-key" \
       "$GUI/sshx-gui" \
       "$LIB/git-auth" \
       "$LIB/sshx-reset"
@@ -71,6 +72,7 @@ echo "🚀 Building Go binaries..."
 cd "$PROJECT_ROOT"
 ./build-sshx
 ./build-init
+./build-keyset
 
 cd "$LIB"
 ./build-git-auth
@@ -126,6 +128,7 @@ echo "🔍 Verifying build artifacts..."
 artifacts=(
   "$BIN/sshx"
   "$BIN/sshx-dev"
+  "$BIN/sshx-key"
   "$GUI/sshx-gui"
   "$LIB/git-auth"
   "$LIB/sshx-reset"
