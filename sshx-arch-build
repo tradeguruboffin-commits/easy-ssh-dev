@@ -63,6 +63,7 @@ rm -f "$BIN/sshx" \
       "$BIN/sshx-key" \
       "$GUI/sshx-gui" \
       "$LIB/git-auth" \
+      "$LIB/sshx-cpy" \
       "$LIB/sshx-reset"
 
 # ---------------- Build Go Binaries ----------------
@@ -76,6 +77,7 @@ cd "$PROJECT_ROOT"
 
 cd "$LIB"
 ./build-git-auth
+./build-sshx-cpy
 
 # ---------------- Python Build ----------------
 
@@ -132,6 +134,7 @@ artifacts=(
   "$GUI/sshx-gui"
   "$LIB/git-auth"
   "$LIB/sshx-reset"
+  "$LIB/sshx-cpy"
 )
 
 for file in "${artifacts[@]}"; do

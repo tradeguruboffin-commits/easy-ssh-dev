@@ -14,6 +14,7 @@ TARGET_DIR="/usr/local/bin"
 BINARIES=(
     "bin/sshx"
     "bin/sshx-key"
+    "gui/lib/sshx-cpy"
     "gui/lib/sshx-reset"
     "gui/lib/git-auth"
     "gui/sshx-gui"
