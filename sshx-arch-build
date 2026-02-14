@@ -77,7 +77,7 @@ echo "🐍 Creating virtual environment..."
 
 cd "$PROJECT_ROOT"
 rm -rf .venv
-python3 -m venv .venv
+python3 -m venv --system-site-packages .venv
 
 source .venv/bin/activate || {
   echo "❌ Failed to activate venv"
