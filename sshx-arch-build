@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =========================================================
-# esey-ssh-dev — Portable Arch Aware Clean Build Script
+# esey-ssh-dev — Portable Clean Build Script
 # Author: Sumit
 # =========================================================
 
@@ -9,6 +9,24 @@ set -Eeuo pipefail
 trap 'rc=$?; echo "❌ Error on line $LINENO. Exit code: $rc"; exit $rc' ERR
 
 IFS=$'\n\t'
+
+# ---------------- Dry Run Support ----------------
+
+DRY_RUN=false
+
+if [[ "${1:-}" == "--dry-run" ]]; then
+  DRY_RUN=true
+  echo "🧪 Running in DRY RUN mode — no changes will be made."
+fi
+
+run() {
+  echo "➜ $*"
+  if [[ "$DRY_RUN" == false ]]; then
+    "$@"
+  fi
+}
+
+# ---------------- Paths ----------------
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUI="$PROJECT_ROOT/gui"
@@ -31,7 +49,6 @@ echo "📦 Checking build dependencies..."
 need go
 need python3
 
-# venv check
 python3 -m venv --help >/dev/null 2>&1 || {
   echo "❌ python3-venv not installed."
   exit 1
@@ -43,72 +60,86 @@ echo "✅ All required dependencies found."
 
 echo "🧹 Removing old binaries..."
 
-mkdir -p "$BIN"
-rm -f "$BIN/sshx" \
-      "$PROJECT_ROOT/sshx-dev" \
-      "$BIN/sshx-key" \
-      "$GUI/sshx-gui" \
-      "$LIB/git-auth" \
-      "$LIB/sshx-cpy" \
-      "$LIB/sshx-reset"
-rm -rf "$GUI/_internal"
+run mkdir -p "$BIN"
+run rm -f "$BIN/sshx" \
+           "$PROJECT_ROOT/sshx-dev" \
+           "$BIN/sshx-key" \
+           "$GUI/sshx-gui" \
+           "$LIB/git-auth" \
+           "$LIB/sshx-cpy" \
+           "$LIB/sshx-reset"
+run rm -rf "$GUI/_internal"
 
 # ---------------- Build Go Binaries ----------------
 
 echo "🚀 Building Go binaries..."
 
 cd "$PROJECT_ROOT"
-./build-sshx
-./build-init
-./build-keyset
+run ./build-sshx
+run ./build-init
+run ./build-keyset
 
 cd "$LIB"
-./build-git-auth
-./build-sshx-cpy
-./build-reset
+run ./build-git-auth
+run ./build-sshx-cpy
+run ./build-reset
 
 # ---------------- Python Build ----------------
 
 echo "🐍 Creating virtual environment..."
 
 cd "$PROJECT_ROOT"
-rm -rf .venv
-python3 -m venv --system-site-packages .venv
+run rm -rf .venv
+run python3 -m venv --system-site-packages .venv
 
-if [[ -f ".venv/bin/activate" ]]; then
-  # shellcheck disable=SC1091
-  source .venv/bin/activate
+if [[ "$DRY_RUN" == false ]]; then
+  if [[ -f ".venv/bin/activate" ]]; then
+    # shellcheck disable=SC1091
+    source .venv/bin/activate
+  else
+    echo "❌ venv activation script missing."
+    exit 1
+  fi
+
+  run pip install --upgrade pip setuptools wheel
+  run pip install --no-cache-dir pyinstaller
 else
-  echo "❌ venv activation script missing."
-  exit 1
+  echo "➜ source .venv/bin/activate"
+  echo "➜ pip install --upgrade pip setuptools wheel"
+  echo "➜ pip install --no-cache-dir pyinstaller"
 fi
-
-pip install --upgrade pip setuptools wheel
-pip install --no-cache-dir pyinstaller
 
 echo "🖥 Building GUI..."
 
-PYTHONNOUSERSITE=1 ./build-gui
+run PYTHONNOUSERSITE=1 ./build-gui
 
 echo "📦 Moving gui binaries..."
 
-if [[ -f "$GUI/dist/sshx-gui/sshx-gui" ]]; then
-  mv -f "$GUI/dist/sshx-gui/sshx-gui" "$GUI/"
-  [[ -d "$GUI/dist/sshx-gui/_internal" ]] && \
-      mv -f "$GUI/dist/sshx-gui/_internal" "$GUI/"
+if [[ "$DRY_RUN" == false ]]; then
+  if [[ -f "$GUI/dist/sshx-gui/sshx-gui" ]]; then
+    run mv -f "$GUI/dist/sshx-gui/sshx-gui" "$GUI/"
+    [[ -d "$GUI/dist/sshx-gui/_internal" ]] && \
+      run mv -f "$GUI/dist/sshx-gui/_internal" "$GUI/"
+  else
+    echo "❌ GUI build failed — binary missing."
+    exit 1
+  fi
 else
-  echo "❌ GUI build failed — binary missing."
-  exit 1
+  echo "➜ mv -f $GUI/dist/sshx-gui/sshx-gui $GUI/"
+  echo "➜ mv -f $GUI/dist/sshx-gui/_internal $GUI/"
 fi
 
-rm -rf "$GUI/dist" "$GUI/build" "$GUI/sshx-gui.spec"
+run rm -rf "$GUI/dist" "$GUI/build" "$GUI/sshx-gui.spec"
 
 # ---------------- Cleanup ----------------
 
 echo "🧼 Cleaning virtual environment..."
 
-deactivate 2>/dev/null || true
-rm -rf "$PROJECT_ROOT/.venv"
+if [[ "$DRY_RUN" == false ]]; then
+  deactivate 2>/dev/null || true
+fi
+
+run rm -rf "$PROJECT_ROOT/.venv"
 
 echo ""
 echo "🔍 Verifying build artifacts..."
@@ -123,35 +154,43 @@ artifacts=(
   "$PROJECT_ROOT/sshx-dev"
 )
 
-for file in "${artifacts[@]}"; do
-  if [[ ! -f "$file" ]]; then
-    echo "❌ Missing artifact: $file"
-    exit 1
-  fi
+if [[ "$DRY_RUN" == false ]]; then
+  for file in "${artifacts[@]}"; do
+    if [[ ! -f "$file" ]]; then
+      echo "❌ Missing artifact: $file"
+      exit 1
+    fi
 
-  if [[ ! -s "$file" ]]; then
-    echo "❌ Artifact exists but empty: $file"
-    exit 1
-  fi
-done
+    if [[ ! -s "$file" ]]; then
+      echo "❌ Artifact exists but empty: $file"
+      exit 1
+    fi
+  done
+  echo "✅ All build artifacts verified."
+else
+  printf "➜ verify %s\n" "${artifacts[@]}"
+fi
 
-echo ""
-echo "✅ All build artifacts verified."
 echo ""
 echo "📦 Build Summary:"
 printf "  ✔ %s\n" "${artifacts[@]}"
 echo ""
+
 for f in "${artifacts[@]}"; do
-  chmod +x "$f"
+  run chmod +x "$f"
 done
-echo ""
+
 cd "$PROJECT_ROOT"
 
-if [[ -x "$PROJECT_ROOT/sshx-dev" ]]; then
-  "$PROJECT_ROOT/sshx-dev" install
+if [[ "$DRY_RUN" == false ]]; then
+  if [[ -x "$PROJECT_ROOT/sshx-dev" ]]; then
+    run "$PROJECT_ROOT/sshx-dev" install
+  else
+    echo "❌ sshx-dev missing, cannot install."
+    exit 1
+  fi
 else
-  echo "❌ sshx-dev missing, cannot install."
-  exit 1
+  echo "➜ $PROJECT_ROOT/sshx-dev install"
 fi
 
 echo ""
