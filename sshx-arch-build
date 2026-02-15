@@ -49,10 +49,32 @@ echo "📦 Checking build dependencies..."
 need go
 need python3
 
-python3 -m venv --help >/dev/null 2>&1 || {
-  echo "❌ python3-venv not installed."
+echo "🔎 Detecting usable Python interpreter..."
+
+PYTHON_BIN=""
+
+if command -v python3 >/dev/null 2>&1; then
+  if python3 -c 'import sys; exit(0 if sys.version_info >= (3,8) else 1)' 2>/dev/null; then
+    if python3 -m venv --help >/dev/null 2>&1; then
+      PYTHON_BIN="python3"
+    fi
+  fi
+fi
+
+if [[ -z "$PYTHON_BIN" ]] && command -v python >/dev/null 2>&1; then
+  if python -c 'import sys; exit(0 if sys.version_info >= (3,8) else 1)' 2>/dev/null; then
+    if python -m venv --help >/dev/null 2>&1; then
+      PYTHON_BIN="python"
+    fi
+  fi
+fi
+
+if [[ -z "$PYTHON_BIN" ]]; then
+  echo "❌ No usable Python 3.8+ with venv found."
   exit 1
-}
+fi
+
+echo "✅ Using $PYTHON_BIN ($( $PYTHON_BIN --version ))"
 
 echo "✅ All required dependencies found."
 
@@ -90,7 +112,8 @@ echo "🐍 Creating virtual environment..."
 
 cd "$PROJECT_ROOT"
 run rm -rf .venv
-run python3 -m venv --system-site-packages .venv
+
+run "$PYTHON_BIN" -m venv --system-site-packages .venv
 
 if [[ "$DRY_RUN" == false ]]; then
   if [[ -f ".venv/bin/activate" ]]; then
