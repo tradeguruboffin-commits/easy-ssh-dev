@@ -134,7 +134,7 @@ fi
 
 echo "🖥 Building GUI..."
 
-run PYTHONNOUSERSITE=1 ./build-gui
+run ./build-gui
 
 echo "📦 Moving gui binaries..."
 
