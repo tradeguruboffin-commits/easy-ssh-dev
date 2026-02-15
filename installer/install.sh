@@ -59,7 +59,7 @@ LOG_FILE="$PROJECT_ROOT/install.log"
 
 exec > >(tee -a "$LOG_FILE") 2>&1
 
-echo -e "${BLUE}🔧 esey-ssh-dev Installer v2.0${NC}"
+echo -e "${BLUE}🔧 esey-ssh-dev Installer ${NC}"
 echo "Project Root: $PROJECT_ROOT"
 echo "----------------------------------------"
 
