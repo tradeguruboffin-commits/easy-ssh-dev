@@ -47,8 +47,8 @@ To install SSHX, clone the repository and run the installer:
 
 ```bash
 git clone https://github.com/tradeguruboffin-commits/esey-ssh-dev.git
-cd esey-ssh-dev
-./app-build-install
+cd esey-ssh-dev/installer/
+./install.sh --yes --build
 ```
 
 This will:
