@@ -8,6 +8,7 @@ It provides:
 - 🖥️ One-click GUI interface
 - 🔐 Automatic SSH key generation
 - 🔑 Automatic key copy for passwordless login
+- 📌 Git authentication automation
 - 📁 Local host caching
 - 🧹 Known_hosts cleanup support
 - 🛠 Doctor self-check system
@@ -20,17 +21,21 @@ It provides:
 - Connect using: `user@ip:port`
 - Automatic SSH key generation (ed25519)
 - First-time password login → auto key copy
+- Git authentication automation (`git-auth`)
 - JSON-based host cache
 - Remove host entries
 - Optional interactive menu (fzf)
 - Self-diagnosis (`--doctor`)
+- And More (`--help`)
 
 ### GUI
 - Clean SSH Control Panel
-- Multi-tab terminal
-- One-click connect
-- Git authentication helper
-- SSH reset tool
+- Multi-tab Terminal
+- One-click Connect To Host
+- One-click SSH key generation (ed25519)
+- One-click SSH Git Authentication (Automation)
+- One-click SSH Host Fingerprints Copy
+- One-click SSH Reset (Key Safe)
 - Clipboard support
 - Fully portable structure
 
@@ -43,7 +48,7 @@ To install SSHX, clone the repository and run the installer:
 ```bash
 git clone https://github.com/tradeguruboffin-commits/esey-ssh-dev.git
 cd esey-ssh-dev
-./bin/sshx-dev install
+./app-build-install
 ```
 
 This will:
@@ -61,7 +66,7 @@ Make sshx and sshx-gui globally accessible
 To remove SSHX:
 
 ```bash
-./bin/sshx-dev uninstall
+./sshx-dev uninstall
 ```
 
 ## 🖥 Usage (CLI)
