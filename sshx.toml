@@ -29,4 +29,3 @@ known_hosts_cleanup = true
 
 [gui]
 enabled = true
-requires_tkinter = true
