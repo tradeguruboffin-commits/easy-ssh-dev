@@ -10,12 +10,37 @@ trap 'rc=$?; echo "❌ Error on line $LINENO. Exit code: $rc"; exit $rc' ERR
 
 IFS=$'\n\t'
 
-# ---------------- Dry Run Support ----------------
+# ---------------- Safe Argument Parser ----------------
 
 DRY_RUN=false
 
-if [[ "${1:-}" == "--dry-run" ]]; then
-  DRY_RUN=true
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)
+        DRY_RUN=true
+        ;;
+      --help|-h)
+        echo "Usage: $0 [--dry-run]"
+        exit 0
+        ;;
+      --*)
+        echo "❌ Unknown option: $1"
+        echo "Use --help to see available options."
+        exit 1
+        ;;
+      *)
+        echo "❌ Unexpected argument: $1"
+        exit 1
+        ;;
+    esac
+    shift
+  done
+}
+
+parse_args "$@"
+
+if [[ "$DRY_RUN" == true ]]; then
   echo "🧪 Running in DRY RUN mode — no changes will be made."
 fi
 
