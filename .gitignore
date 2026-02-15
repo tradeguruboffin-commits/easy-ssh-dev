@@ -6,7 +6,7 @@ gui/sshx-gui
 
 # Built Go binaries
 bin/sshx
-bin/sshx-dev
+sshx-dev
 bin/sshx-key
 
 # Built lib binaries

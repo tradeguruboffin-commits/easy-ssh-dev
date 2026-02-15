@@ -17,10 +17,6 @@ BIN="$PROJECT_ROOT/bin"
 
 echo "📁 Project root: $PROJECT_ROOT"
 
-echo "🔎 Detecting architecture..."
-ARCH=$(uname -m)
-echo "Architecture: $ARCH"
-
 # ---------------- Dependency Check ----------------
 
 need() {
@@ -49,7 +45,7 @@ echo "🧹 Removing old binaries..."
 
 mkdir -p "$BIN"
 rm -f "$BIN/sshx" \
-      "$BIN/sshx-dev" \
+      "$PROJECT_ROOT/sshx-dev" \
       "$BIN/sshx-key" \
       "$GUI/sshx-gui" \
       "$LIB/git-auth" \
@@ -79,12 +75,15 @@ cd "$PROJECT_ROOT"
 rm -rf .venv
 python3 -m venv --system-site-packages .venv
 
-source .venv/bin/activate || {
-  echo "❌ Failed to activate venv"
+if [[ -f ".venv/bin/activate" ]]; then
+  # shellcheck disable=SC1091
+  source .venv/bin/activate
+else
+  echo "❌ venv activation script missing."
   exit 1
-}
+fi
 
-pip install --upgrade pip
+pip install --upgrade pip setuptools wheel
 pip install --no-cache-dir pyinstaller
 
 echo "🖥 Building GUI..."
@@ -93,11 +92,12 @@ PYTHONNOUSERSITE=1 ./build-gui
 
 echo "📦 Moving gui binaries..."
 
-if [[ -d "$GUI/dist/sshx-gui" ]]; then
+if [[ -f "$GUI/dist/sshx-gui/sshx-gui" ]]; then
   mv -f "$GUI/dist/sshx-gui/sshx-gui" "$GUI/"
-  mv -f "$GUI/dist/sshx-gui/_internal" "$GUI/"
+  [[ -d "$GUI/dist/sshx-gui/_internal" ]] && \
+      mv -f "$GUI/dist/sshx-gui/_internal" "$GUI/"
 else
-  echo "❌ GUI build failed — dist folder missing."
+  echo "❌ GUI build failed — binary missing."
   exit 1
 fi
 
@@ -110,18 +110,8 @@ echo "🧼 Cleaning virtual environment..."
 deactivate 2>/dev/null || true
 rm -rf "$PROJECT_ROOT/.venv"
 
-chmod +x "$BIN/sshx" \
-         "$BIN/sshx-dev" \
-         "$BIN/sshx-key" \
-         "$GUI/sshx-gui" \
-         "$LIB/git-auth" \
-         "$LIB/sshx-reset" \
-         "$LIB/sshx-cpy"
-
-if command -v tree >/dev/null 2>&1; then
+if [[ "${CI:-false}" != "true" ]] && command -v tree >/dev/null; then
   tree "$PROJECT_ROOT"
-else
-  echo "📁 Build complete."
 fi
 
 echo ""
@@ -129,12 +119,12 @@ echo "🔍 Verifying build artifacts..."
 
 artifacts=(
   "$BIN/sshx"
-  "$BIN/sshx-dev"
   "$BIN/sshx-key"
   "$GUI/sshx-gui"
   "$LIB/git-auth"
   "$LIB/sshx-reset"
   "$LIB/sshx-cpy"
+  "$PROJECT_ROOT/sshx-dev"
 )
 
 for file in "${artifacts[@]}"; do
@@ -152,5 +142,19 @@ done
 echo ""
 echo "✅ All build artifacts verified."
 echo ""
-echo "✅ Clean portable build successful!"
+for f in "${artifacts[@]}"; do
+  chmod +x "$f"
+done
+echo ""
+cd "$PROJECT_ROOT"
+
+if [[ -x "$PROJECT_ROOT/sshx-dev" ]]; then
+  "$PROJECT_ROOT/sshx-dev" install
+else
+  echo "❌ sshx-dev missing, cannot install."
+  exit 1
+fi
+
+echo ""
+echo "✅ SSHX fully installed successful!"
 echo ""

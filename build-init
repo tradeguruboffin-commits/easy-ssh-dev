@@ -3,12 +3,10 @@ set -euo pipefail
 
 APP_NAME="sshx-dev"
 SOURCE_FILE="init.go"
-OUTPUT_DIR="./bin"
-OUTPUT_BIN="$OUTPUT_DIR/$APP_NAME"
+
+OUTPUT_BIN="$APP_NAME"
 
 echo "🔨 Building $APP_NAME..."
-
-mkdir -p "$OUTPUT_DIR"
 
 go build -o "$OUTPUT_BIN" "$SOURCE_FILE"
 
