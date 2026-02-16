@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =========================================================
-# easy-ssh-dev — Installer
+# easy-ssh-dev — Dependency Installer
 # Author: Sumit
 # =========================================================
 
@@ -47,42 +47,18 @@ usage() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --dry-run)
-      DRY_RUN=true
-      shift
-      ;;
-    -y|--yes)
-      AUTO_YES=true
-      shift
-      ;;
-    --build)
-      AUTO_BUILD=true
-      shift
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    -*)
-      err "Unknown option: $1"
-      echo ""
-      usage
-      exit 1
-      ;;
-    *)
-      err "Unexpected argument: $1"
-      echo ""
-      usage
-      exit 1
-      ;;
+    --dry-run) DRY_RUN=true ;;
+    -y|--yes) AUTO_YES=true ;;
+    --build) AUTO_BUILD=true ;;
+    -h|--help) usage; exit 0 ;;
+    *) err "Unknown option: $1"; usage; exit 1 ;;
   esac
+  shift
 done
 
 run() {
   log "$*"
-  if [[ "$DRY_RUN" == true ]]; then
-    return 0
-  fi
+  [[ "$DRY_RUN" == true ]] && return 0
   "$@"
 }
 
@@ -92,21 +68,16 @@ confirm() {
   [[ "${ans,,}" == "y" ]]
 }
 
-# ---------------- Root Detection ----------------
+# ---------------- Root ----------------
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_FILE="$PROJECT_ROOT/install.log"
 
 exec > >(tee -a "$LOG_FILE") 2>&1
 
-echo -e "${BLUE}🔧 easy-ssh-dev Installer ${NC}"
+echo -e "${BLUE}🔧 easy-ssh-dev Installer${NC}"
 echo "Project Root: $PROJECT_ROOT"
 echo "----------------------------------------"
-
-if [[ "$DRY_RUN" == true ]]; then
-  echo -e "${YELLOW}⚠ DRY RUN MODE — No changes will be made${NC}"
-  echo "----------------------------------------"
-fi
 
 # ---------------- Detect OS ----------------
 
@@ -118,13 +89,13 @@ if [[ -n "${TERMUX_VERSION:-}" ]]; then
   OS="termux"; PM="pkg"
 elif [[ "$OSTYPE" == "darwin"* ]]; then
   OS="macos"; PM="brew"
-elif command -v apt >/dev/null; then
+elif command -v apt >/dev/null 2>&1; then
   OS="debian"; PM="apt"
-elif command -v dnf >/dev/null; then
+elif command -v dnf >/dev/null 2>&1; then
   OS="fedora"; PM="dnf"
-elif command -v pacman >/dev/null; then
+elif command -v pacman >/dev/null 2>&1; then
   OS="arch"; PM="pacman"
-elif command -v apk >/dev/null; then
+elif command -v apk >/dev/null 2>&1; then
   OS="alpine"; PM="apk"
 else
   err "Unsupported OS"
@@ -150,7 +121,15 @@ EOF
 
 check_go() {
   command -v go >/dev/null || return 1
-  ver=$(go version | awk '{print $3}' | sed 's/go//')
+
+  # Primary method
+  if ver=$(go env GOVERSION 2>/dev/null); then
+    ver="${ver#go}"
+  else
+    # Fallback method
+    ver=$(go version | awk '{print $3}' | sed 's/go//')
+  fi
+
   IFS=. read -r major minor _ <<< "$ver"
   (( major > GO_MIN_MAJOR || (major == GO_MIN_MAJOR && minor >= GO_MIN_MINOR) ))
 }
@@ -163,26 +142,47 @@ echo "----------------------------------------"
 
 install_pkgs() {
   case "$PM" in
-    apt) run $SUDO apt update -y && run $SUDO apt install -y "$@" ;;
-    dnf) run $SUDO dnf install -y "$@" ;;
-    pacman) run $SUDO pacman -Sy --noconfirm "$@" ;;
-    apk) run $SUDO apk add "$@" ;;
-    pkg) run pkg install -y "$@" ;;
-    brew) run brew install "$@" ;;
+    apt)
+      run $SUDO apt update
+      if [[ "$AUTO_YES" == true ]]; then
+        run $SUDO apt upgrade -y
+      fi
+      run $SUDO apt install -y "$@"
+      ;;
+    dnf)
+      run $SUDO dnf install -y "$@"
+      ;;
+    pacman)
+      run $SUDO pacman -Sy --noconfirm "$@"
+      ;;
+    apk)
+      run $SUDO apk add "$@"
+      ;;
+    pkg)
+      run pkg update -y
+      run pkg install -y "$@"
+      ;;
+    brew)
+      run brew update
+      run brew install "$@"
+      ;;
   esac
 }
 
+# ---------------- Core Packages ----------------
+
 case "$OS" in
-  debian) CORE=(golang python3 python3-venv python3-pip jq openssh-client) ;;
+  debian) CORE=(golang-go python3 python3-venv python3-pip jq openssh-client) ;;
   fedora) CORE=(golang python3 python3-pip jq openssh-clients) ;;
-  arch) CORE=(go python python-pip jq openssh) ;;
+  arch) CORE=(go python jq openssh python-virtualenv) ;;
   alpine) CORE=(go python3 py3-pip py3-virtualenv jq openssh) ;;
-  termux) CORE=(golang python jq openssh) ;;
+  termux) CORE=(go python jq openssh) ;;
   macos) CORE=(go python jq) ;;
 esac
 
-echo "Checking dependencies..."
+# ---------------- Dependency Check ----------------
 
+echo "Checking dependencies..."
 NEED=false
 
 check_python || { warn "Python >=3.8 missing"; NEED=true; }
@@ -193,53 +193,52 @@ for cmd in jq ssh; do
 done
 
 if [[ "$NEED" == true ]]; then
-  warn "Missing core dependencies."
+  warn "Missing dependencies detected."
   confirm || exit 1
   install_pkgs "${CORE[@]}"
 else
   ok "Core dependencies OK"
 fi
 
-# ---------------- Python Venv Check (Auto Install + Recheck) ----------------
+# ---------------- Python venv ----------------
 
-echo "Checking python venv support..."
+echo "Checking python venv..."
 
 if python3 -m venv --help >/dev/null 2>&1; then
-  ok "python3 venv module available"
+  ok "python3 venv available"
 else
-  warn "python3 venv module missing"
+  warn "venv missing"
   confirm || exit 1
 
   case "$OS" in
     debian) install_pkgs python3-venv ;;
-    fedora) install_pkgs python3 ;;
-    arch) install_pkgs python ;;
     alpine) install_pkgs py3-virtualenv ;;
-    termux) install_pkgs python ;;
-    macos) install_pkgs python ;;
+    arch)   install_pkgs python-virtualenv ;;
+    *)      install_pkgs python3 ;;
   esac
 
-  if python3 -m venv --help >/dev/null 2>&1; then
-    ok "python3 venv module installed successfully"
-  else
-    err "python3 venv still unavailable after installation"
+  python3 -m venv --help >/dev/null 2>&1 || {
+    err "python3 venv still unavailable"
     exit 1
-  fi
+  }
+
+  ok "venv installed"
 fi
 
-# ---------------- Auto Build (Optional) ----------------
+# ---------------- Auto Build ----------------
 
 if [[ "$AUTO_BUILD" == true ]]; then
   if [[ -f "$PROJECT_ROOT/app-build-install" ]]; then
-    log "Triggering build-install..."
+    log "Running build-install..."
     run bash "$PROJECT_ROOT/app-build-install"
   else
     warn "app-build-install not found"
   fi
 fi
 
-# ---------------- Summary ----------------
+# ---------------- Success ----------------
 
 echo ""
 echo "----------------------------------------"
 echo "Log file: $LOG_FILE"
+ok "All done successfully 🚀"
