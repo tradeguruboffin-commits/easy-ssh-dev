@@ -47,7 +47,7 @@ To install SSHX, clone the repository and run the installer:
 
 ```bash
 git clone https://github.com/tradeguruboffin-commits/easy-ssh-dev.git
-cd esey-ssh-dev/installer/
+cd easy-ssh-dev/installer/
 ./install.sh --yes --build
 ```
 
