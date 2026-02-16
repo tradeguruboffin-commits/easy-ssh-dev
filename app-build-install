@@ -19,14 +19,24 @@ parse_args() {
     case "$1" in
       --dry-run)
         DRY_RUN=true
+        shift
         ;;
       --help|-h)
         echo "Usage: $0 [--dry-run]"
         exit 0
         ;;
+      --*=*)
+        echo "❌ Unknown option: ${1%%=*}"
+        echo "Use --help to see available options."
+        exit 1
+        ;;
       --*)
         echo "❌ Unknown option: $1"
         echo "Use --help to see available options."
+        exit 1
+        ;;
+      -*)
+        echo "❌ Unknown option: $1"
         exit 1
         ;;
       *)
@@ -34,7 +44,6 @@ parse_args() {
         exit 1
         ;;
     esac
-    shift
   done
 }
 
@@ -47,7 +56,7 @@ fi
 run() {
   echo "➜ $*"
   if [[ "$DRY_RUN" == false ]]; then
-    "$@"
+    command "$@"
   fi
 }
 
