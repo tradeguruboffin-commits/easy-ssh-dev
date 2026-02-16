@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # =========================================================
-# easy-ssh-dev — Dependency Installer
+# easy-ssh-dev — Dependency Installer (CLI + GUI + Build)
+# Release Candidate v1.1
 # Author: Sumit
 # =========================================================
 
@@ -10,20 +11,17 @@ trap 'rc=$?; echo -e "${RED}❌ Error on line $LINENO (exit $rc)${NC}"; exit $rc
 
 # ---------------- Colors ----------------
 
-RED="\e[31m"
-GREEN="\e[32m"
-YELLOW="\e[33m"
-BLUE="\e[34m"
-CYAN="\e[36m"
-NC="\e[0m"
+RED="\e[31m"; GREEN="\e[32m"; YELLOW="\e[33m"
+BLUE="\e[34m"; CYAN="\e[36m"; NC="\e[0m"
 
-log() { echo -e "${CYAN}➜${NC} $*"; }
-ok() { echo -e "${GREEN}✔${NC} $*"; }
+log()  { echo -e "${CYAN}➜${NC} $*"; }
+ok()   { echo -e "${GREEN}✔${NC} $*"; }
 warn() { echo -e "${YELLOW}⚠${NC} $*"; }
-err() { echo -e "${RED}✖${NC} $*"; }
+err()  { echo -e "${RED}✖${NC} $*"; }
 
 # ---------------- Config ----------------
 
+VERSION="1.1-rc"
 PY_MIN_MAJOR=3
 PY_MIN_MINOR=8
 GO_MIN_MAJOR=1
@@ -33,23 +31,23 @@ DRY_RUN=false
 AUTO_YES=false
 AUTO_BUILD=false
 
-# ---------------- Argument Parser ----------------
+# ---------------- Args ----------------
 
 usage() {
-  echo "Usage: $0 [options]"
+  echo "easy-ssh-dev Installer v$VERSION"
   echo ""
-  echo "Options:"
-  echo "  --dry-run       Show actions without executing"
-  echo "  -y, --yes       Auto confirm all prompts"
-  echo "  --build         Run app-build-install after setup"
-  echo "  -h, --help      Show this help message"
+  echo "Usage: $0 [options]"
+  echo "  --dry-run       Show actions only"
+  echo "  -y, --yes       Auto confirm"
+  echo "  --build         Install build deps"
+  echo "  -h, --help      Show help"
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --dry-run) DRY_RUN=true ;;
-    -y|--yes) AUTO_YES=true ;;
-    --build) AUTO_BUILD=true ;;
+    -y|--yes)  AUTO_YES=true ;;
+    --build)   AUTO_BUILD=true ;;
     -h|--help) usage; exit 0 ;;
     *) err "Unknown option: $1"; usage; exit 1 ;;
   esac
@@ -72,39 +70,34 @@ confirm() {
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_FILE="$PROJECT_ROOT/install.log"
-
 exec > >(tee -a "$LOG_FILE") 2>&1
 
-echo -e "${BLUE}🔧 easy-ssh-dev Installer${NC}"
+echo -e "${BLUE}🔧 easy-ssh-dev Dependency Installer v$VERSION${NC}"
 echo "Project Root: $PROJECT_ROOT"
 echo "----------------------------------------"
 
-# ---------------- Detect OS ----------------
+# ---------------- OS Detect ----------------
 
-OS=""
-PM=""
-SUDO=""
+OS=""; PM=""; SUDO=""
 
 if [[ -n "${TERMUX_VERSION:-}" ]]; then
-  OS="termux"; PM="pkg"
+  OS=termux; PM=pkg
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-  OS="macos"; PM="brew"
-elif command -v apt >/dev/null 2>&1; then
-  OS="debian"; PM="apt"
-elif command -v dnf >/dev/null 2>&1; then
-  OS="fedora"; PM="dnf"
-elif command -v pacman >/dev/null 2>&1; then
-  OS="arch"; PM="pacman"
-elif command -v apk >/dev/null 2>&1; then
-  OS="alpine"; PM="apk"
+  OS=macos; PM=brew
+elif command -v apt >/dev/null; then
+  OS=debian; PM=apt
+elif command -v dnf >/dev/null; then
+  OS=fedora; PM=dnf
+elif command -v pacman >/dev/null; then
+  OS=arch; PM=pacman
+elif command -v apk >/dev/null; then
+  OS=alpine; PM=apk
 else
   err "Unsupported OS"
   exit 1
 fi
 
-if [[ "$EUID" -ne 0 ]] && command -v sudo >/dev/null; then
-  SUDO="sudo"
-fi
+[[ "$EUID" -ne 0 && -x "$(command -v sudo)" ]] && SUDO=sudo
 
 echo "OS: $OS | Package Manager: $PM"
 echo "----------------------------------------"
@@ -121,39 +114,25 @@ EOF
 
 check_go() {
   command -v go >/dev/null || return 1
-
-  # Primary method
-  if ver=$(go env GOVERSION 2>/dev/null); then
-    ver="${ver#go}"
-  else
-    # Fallback method
-    ver=$(go version | awk '{print $3}' | sed 's/go//')
-  fi
-
+  ver=$(go env GOVERSION 2>/dev/null || go version | awk '{print $3}')
+  ver="${ver#go}"
   IFS=. read -r major minor _ <<< "$ver"
   (( major > GO_MIN_MAJOR || (major == GO_MIN_MAJOR && minor >= GO_MIN_MINOR) ))
 }
 
-echo "Python: $(python3 --version 2>/dev/null || echo missing)"
-echo "Go    : $(go version 2>/dev/null || echo missing)"
-echo "----------------------------------------"
-
-# ---------------- Package Install ----------------
+# ---------------- Installer ----------------
 
 install_pkgs() {
   case "$PM" in
     apt)
       run $SUDO apt update
-      if [[ "$AUTO_YES" == true ]]; then
-        run $SUDO apt upgrade -y
-      fi
       run $SUDO apt install -y "$@"
       ;;
     dnf)
       run $SUDO dnf install -y "$@"
       ;;
     pacman)
-      run $SUDO pacman -Sy --noconfirm "$@"
+      run $SUDO pacman -Syu --noconfirm "$@"
       ;;
     apk)
       run $SUDO apk add "$@"
@@ -169,76 +148,97 @@ install_pkgs() {
   esac
 }
 
-# ---------------- Core Packages ----------------
+# ---------------- Dependency Matrix ----------------
 
 case "$OS" in
-  debian) CORE=(golang-go python3 python3-venv python3-pip jq openssh-client) ;;
-  fedora) CORE=(golang python3 python3-pip jq openssh-clients) ;;
-  arch) CORE=(go python jq openssh python-virtualenv) ;;
-  alpine) CORE=(go python3 py3-pip py3-virtualenv jq openssh) ;;
-  termux) CORE=(go python jq openssh) ;;
-  macos) CORE=(go python jq) ;;
+debian)
+  CORE=(golang-go python3 python3-venv python3-pip jq openssh-client)
+  GUI_DEPS=(libgtk-3-0 gir1.2-gtk-3.0 libvte-2.91-0 gir1.2-vte-2.91 python3-gi python3-gi-cairo)
+  BUILD_DEPS=(binutils build-essential python3-pyinstaller)
+;;
+fedora)
+  CORE=(golang python3 python3-pip jq openssh-clients)
+  GUI_DEPS=(gtk3 vte291 python3-gobject cairo-gobject)
+  BUILD_DEPS=(binutils gcc gcc-c++ make python3-pyinstaller)
+;;
+arch)
+  CORE=(go python jq openssh python-virtualenv)
+  GUI_DEPS=(gtk3 vte3 python-gobject python-cairo)
+  BUILD_DEPS=(binutils base-devel python-pyinstaller)
+;;
+alpine)
+  CORE=(go python3 py3-pip py3-virtualenv jq openssh)
+  GUI_DEPS=(gtk+3.0 vte3 py3-gobject3 py3-cairo)
+  BUILD_DEPS=(binutils build-base py3-pyinstaller)
+;;
+termux)
+  CORE=(go python jq openssh)
+  GUI_DEPS=()
+  BUILD_DEPS=(binutils)
+;;
+macos)
+  CORE=(go python jq)
+  GUI_DEPS=(gtk+3 vte3 pygobject3)
+  BUILD_DEPS=(pyinstaller)
+;;
 esac
 
-# ---------------- Dependency Check ----------------
+# ---------------- Install Flow ----------------
 
-echo "Checking dependencies..."
+echo "Checking core dependencies..."
 NEED=false
 
-check_python || { warn "Python >=3.8 missing"; NEED=true; }
-check_go || { warn "Go >=1.20 missing"; NEED=true; }
+if ! check_python; then
+  warn "Python >= ${PY_MIN_MAJOR}.${PY_MIN_MINOR} required"
+  NEED=true
+fi
+
+if ! check_go; then
+  warn "Go >= ${GO_MIN_MAJOR}.${GO_MIN_MINOR} required"
+  NEED=true
+fi
 
 for cmd in jq ssh; do
-  command -v "$cmd" >/dev/null || { warn "$cmd missing"; NEED=true; }
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    warn "$cmd missing"
+    NEED=true
+  fi
 done
 
 if [[ "$NEED" == true ]]; then
-  warn "Missing dependencies detected."
+  warn "Core dependencies missing"
   confirm || exit 1
   install_pkgs "${CORE[@]}"
 else
   ok "Core dependencies OK"
 fi
 
-# ---------------- Python venv ----------------
-
-echo "Checking python venv..."
-
-if python3 -m venv --help >/dev/null 2>&1; then
-  ok "python3 venv available"
-else
-  warn "venv missing"
-  confirm || exit 1
-
-  case "$OS" in
-    debian) install_pkgs python3-venv ;;
-    alpine) install_pkgs py3-virtualenv ;;
-    arch)   install_pkgs python-virtualenv ;;
-    *)      install_pkgs python3 ;;
-  esac
-
-  python3 -m venv --help >/dev/null 2>&1 || {
-    err "python3 venv still unavailable"
-    exit 1
-  }
-
-  ok "venv installed"
-fi
-
-# ---------------- Auto Build ----------------
+echo "Installing GUI dependencies..."
+[[ "${#GUI_DEPS[@]}" -gt 0 ]] && install_pkgs "${GUI_DEPS[@]}"
 
 if [[ "$AUTO_BUILD" == true ]]; then
-  if [[ -f "$PROJECT_ROOT/app-build-install" ]]; then
-    log "Running build-install..."
-    run bash "$PROJECT_ROOT/app-build-install"
-  else
-    warn "app-build-install not found"
-  fi
+  echo "Installing build dependencies..."
+  install_pkgs "${BUILD_DEPS[@]}"
 fi
 
-# ---------------- Success ----------------
+# ---------------- Final Build Trigger (Always) ----------------
 
 echo ""
 echo "----------------------------------------"
+log "Triggering build step..."
+
+if [[ -f "$PROJECT_ROOT/app-build-install" ]]; then
+  if [[ "$DRY_RUN" == true ]]; then
+    log "[DRY RUN] Would execute: bash $PROJECT_ROOT/app-build-install"
+  else
+    bash "$PROJECT_ROOT/app-build-install" || warn "Build step failed (installer completed)"
+  fi
+else
+  warn "app-build-install not found — skipping build step"
+fi
+
+# ---------------- Finish ----------------
+
+echo "----------------------------------------"
 echo "Log file: $LOG_FILE"
-ok "All done successfully 🚀"
+ok "ALL DONE SUCCESSFULLY 🚀"
