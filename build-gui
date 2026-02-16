@@ -23,7 +23,7 @@ pyinstaller \
   --noupx \
   --add-data "../bin:bin" \
   --add-data "lib:gui/lib" \
-  esey-ssh-gui.py
+  easy-ssh-gui.py
 
 echo "✅ Build complete!"
 echo "📦 Output: gui/dist/$APP_NAME"
