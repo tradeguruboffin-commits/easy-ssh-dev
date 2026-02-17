@@ -163,12 +163,12 @@ debian)
 ;;
 fedora)
   CORE=(golang python3 python3-pip jq openssh-clients)
-  GUI=(gtk3 vte291 python3-gobject)
+  GUI=(gtk3 gtk3-devel vte291 vte291-devel gobject-introspection gobject-introspection-devel python3-gobject)
   BUILD=(gcc gcc-c++ make)
 ;;
 arch)
   CORE=(go python jq openssh)
-  GUI=(gtk3 vte3 python-gobject)
+  GUI=(gtk3 vte3 gobject-introspection python-gobject)
   BUILD=(base-devel)
 ;;
 alpine)

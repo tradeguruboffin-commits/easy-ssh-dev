@@ -1,24 +1,132 @@
 #!/usr/bin/env bash
-
-set -e
+set -euo pipefail
+IFS=$'\n\t'
 
 APP_NAME="sshx-gui"
 ROOT_DIR="$(cd .. && pwd)"
 GUI_DIR="$ROOT_DIR/gui"
+VENV_DIR="$ROOT_DIR/.venv"
 
-echo "🚀 Cleaning old builds..."
-rm -rf "$GUI_DIR/build"
-rm -rf "$GUI_DIR/dist"
-rm -f  "$GUI_DIR/$APP_NAME.spec"
+RED="\e[31m"; GREEN="\e[32m"; YELLOW="\e[33m"; BLUE="\e[34m"; NC="\e[0m"
+log() { echo -e "${BLUE}➜${NC} $*"; }
+ok()  { echo -e "${GREEN}✔${NC} $*"; }
+warn(){ echo -e "${YELLOW}⚠${NC} $*"; }
+err() { echo -e "${RED}✖${NC} $*"; }
 
+DRY_RUN=false
+VERBOSE=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run) DRY_RUN=true ;;
+        --verbose) VERBOSE=true ;;
+        -h|--help)
+            echo "Usage: $0 [--dry-run] [--verbose]"
+            exit 0
+            ;;
+        *)
+            err "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+run_cmd() {
+    if [[ "$DRY_RUN" == true ]]; then
+        echo -e "${YELLOW}[DRY-RUN]${NC} $*"
+    else
+        [[ "$VERBOSE" == true ]] && echo -e "${BLUE}[CMD]${NC} $*"
+        "$@"
+    fi
+}
+
+# ---------------- OS & Arch Detect ----------------
+OS=""
+PM=""
+SUDO=""
+ARCH=$(uname -m)
+
+case "$ARCH" in
+    x86_64) ARCH_TAG="x86_64";;
+    aarch64|arm64) ARCH_TAG="arm64";;
+    i?86) ARCH_TAG="x86";;
+    *) ARCH_TAG="$ARCH";;
+esac
+log "Detected architecture: $ARCH_TAG"
+
+if [[ -n "${TERMUX_VERSION:-}" ]]; then
+    OS="termux"; PM="pkg"
+elif command -v apt >/dev/null 2>&1; then
+    OS="debian"; PM="apt"
+elif command -v dnf >/dev/null 2>&1; then
+    OS="fedora"; PM="dnf"
+elif command -v pacman >/dev/null 2>&1; then
+    OS="arch"; PM="pacman"
+elif command -v apk >/dev/null 2>&1; then
+    OS="alpine"; PM="apk"
+else
+    err "Unsupported OS. GTK+VTE dev packages may need manual install."
+    exit 1
+fi
+
+[[ "$EUID" -ne 0 && -x "$(command -v sudo)" ]] && SUDO="sudo"
+log "Detected OS: $OS"
+
+# ---------------- GTK + VTE Check ----------------
+check_gtk_vte() {
+    local MISSING=()
+    for lib in gtk+-3.0 vte-2.91; do
+        if ! pkg-config --exists "$lib" 2>/dev/null; then
+            warn "$lib not found!"
+            MISSING+=("$lib")
+        else
+            ok "$lib found"
+        fi
+    done
+    if [[ ${#MISSING[@]} -gt 0 ]]; then
+        log "Attempting to install missing GTK/VTE dev packages..."
+        case "$OS" in
+            debian) run_cmd $SUDO apt install -y libgtk-3-dev libvte-2.91-dev ;;
+            fedora) run_cmd $SUDO dnf install -y gtk3-devel vte291-devel ;;
+            arch)   run_cmd $SUDO pacman -Syu --noconfirm gtk3 vte3 ;;
+            alpine) run_cmd $SUDO apk add gtk+3.0-dev vte-dev ;;
+            termux) run_cmd pkg install -y gtk3 vte ;;
+        esac
+    fi
+}
+
+# ---------------- Venv Setup ----------------
+if [[ ! -d "$VENV_DIR" ]]; then
+    run_cmd python3 -m  venv --system-site-packages "$VENV_DIR"
+fi
+source "$VENV_DIR/bin/activate"
+
+run_cmd pip install --upgrade pip setuptools wheel
+
+run_cmd pip install --force-reinstall pyinstaller==6.13.0
+
+# Add system site-packages for GTK/GObject
+SITE_PACKAGES="$VENV_DIR/lib/python$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/site-packages"
+mkdir -p "$SITE_PACKAGES"
+SYS_PYTHON=$(python3 -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
+echo "$SYS_PYTHON" > "$SITE_PACKAGES/system.pth"
+ok "System site-packages added: $SYS_PYTHON"
+
+# ---------------- Check & Install Dev Packages ----------------
+check_gtk_vte
+
+# ---------------- Clean old builds ----------------
+log "Cleaning old builds..."
+run_cmd rm -rf "$GUI_DIR/build" "$GUI_DIR/dist" "$GUI_DIR/$APP_NAME.spec"
 cd "$GUI_DIR"
 
-echo "🔨 Building GUI (onedir mode)..."
-
-pyinstaller \
+# ---------------- Build GUI ----------------
+log "Building GUI for $ARCH_TAG..."
+run_cmd pyinstaller \
   --noconfirm \
   --onedir \
-  --name $APP_NAME \
+  --name "$APP_NAME" \
   --clean \
   --noupx \
   --hidden-import=gi \
@@ -29,5 +137,5 @@ pyinstaller \
   --add-data "lib:gui/lib" \
   easy-ssh-gui.py
 
-echo "✅ Build complete!"
-echo "📦 Output: gui/dist/$APP_NAME"
+ok "Build complete!"
+ok "Output: gui/dist/$APP_NAME"

@@ -142,34 +142,10 @@ run ./build-reset
 
 # ---------------- Python Build ----------------
 
-echo "🐍 Creating virtual environment..."
+echo "🐍 Entering virtual environment..."
 
 cd "$PROJECT_ROOT"
 run rm -rf .venv
-
-run "$PYTHON_BIN" -m venv .venv
-
-if [[ "$DRY_RUN" == false ]]; then
-  if [[ -f ".venv/bin/activate" ]]; then
-    # shellcheck disable=SC1091
-    source .venv/bin/activate
-  else
-    echo "❌ venv activation script missing."
-    exit 1
-  fi
-
-  run pip install --upgrade pip setuptools wheel
-  run pip install --no-cache-dir pyinstaller==6.13.0
-
-else
-  echo "➜ source .venv/bin/activate"
-  echo "➜ pip install --upgrade pip setuptools wheel"
-  echo "➜ pip install --no-cache-dir pyinstaller==6.13.0"
-fi
-
-echo "🖥 Building GUI..."
-
-echo "/usr/lib/python3/dist-packages" > .venv/lib/python3.13/site-packages/system.pth
 
 cd "$GUI"
 run ./build-gui
@@ -196,6 +172,10 @@ run rm -rf "$GUI/dist" "$GUI/build" "$GUI/sshx-gui.spec"
 # ---------------- Cleanup ----------------
 
 echo "🧼 Cleaning virtual environment..."
+
+if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+    run deactivate || true
+fi
 
 if [[ "$DRY_RUN" == false ]]; then
   deactivate 2>/dev/null || true
