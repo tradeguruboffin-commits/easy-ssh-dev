@@ -159,14 +159,13 @@ if [[ "$DRY_RUN" == false ]]; then
   fi
 
   run pip install --upgrade pip setuptools wheel
-  run pip install --no-cache-dir pyinstaller
-  run pip install "pyinstaller-hooks-contrib>=2025.2"
-  run pip install --force-reinstall pyinstaller==6.13.0
+  run pip install --no-cache-dir pyinstaller==6.13.0
+  run pip install --no-cache-dir "pyinstaller-hooks-contrib>=2025.2"
 
 else
   echo "➜ source .venv/bin/activate"
   echo "➜ pip install --upgrade pip setuptools wheel"
-  echo "➜ pip install --no-cache-dir pyinstaller"
+  echo "➜ pip install --no-cache-dir pyinstaller==6.13.0"
 fi
 
 echo "🖥 Building GUI..."
