@@ -64,7 +64,7 @@ run() {
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUI="$PROJECT_ROOT/gui"
-LIB="$GUI/lib"
+LIB="$PROJECT_ROOT/lib"
 BIN="$PROJECT_ROOT/bin"
 
 echo "📁 Project root: $PROJECT_ROOT"
@@ -117,6 +117,7 @@ echo "✅ All required dependencies found."
 echo "🧹 Removing old binaries..."
 
 run mkdir -p "$BIN"
+run mkdir -p "$LIB"
 run rm -f "$BIN/sshx" \
            "$PROJECT_ROOT/sshx-dev" \
            "$BIN/sshx-key" \
@@ -134,11 +135,7 @@ cd "$PROJECT_ROOT"
 run ./build-sshx
 run ./build-init
 run ./build-keyset
-
-cd "$LIB"
-run ./build-git-auth
-run ./build-sshx-cpy
-run ./build-reset
+run ./build-lib
 
 # ---------------- Python Build ----------------
 
@@ -147,7 +144,6 @@ echo "🐍 Entering virtual environment..."
 cd "$PROJECT_ROOT"
 run rm -rf .venv
 
-cd "$GUI"
 run ./build-gui
 cd "$PROJECT_ROOT"
 

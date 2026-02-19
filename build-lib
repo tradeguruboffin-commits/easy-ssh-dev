@@ -1,0 +1,58 @@
+#!/bin/bash
+# build-lib — Unified Go Builder for lib binaries
+
+set -Eeuo pipefail
+
+OUTPUT_DIR="./lib"
+mkdir -p "$OUTPUT_DIR"
+
+# List of source files
+SOURCES=(
+    "git-auth.go"
+    "sshx-cpy.go"
+    "sshx-reset.go"
+)
+
+echo "🚀 Starting unified build..."
+echo "📦 Using -trimpath -ldflags='-s -w'"
+echo "--------------------------------------"
+
+for SOURCE_FILE in "${SOURCES[@]}"; do
+
+    if [[ ! -f "$SOURCE_FILE" ]]; then
+        echo "⚠ Skipping $SOURCE_FILE (not found)"
+        continue
+    fi
+
+    BINARY_NAME="${SOURCE_FILE%.go}"
+    OUTPUT_PATH="$OUTPUT_DIR/$BINARY_NAME"
+
+    echo ""
+    echo "🔨 Building $BINARY_NAME..."
+
+    # Previous size check
+    if [[ -f "$OUTPUT_PATH" ]]; then
+        before=$(wc -c < "$OUTPUT_PATH")
+    else
+        before=0
+    fi
+
+    go build -trimpath -ldflags="-s -w" -o "$OUTPUT_PATH" "$SOURCE_FILE"
+
+    after=$(wc -c < "$OUTPUT_PATH")
+
+    echo "✅ Built: $OUTPUT_PATH"
+
+    if [[ $before -gt 0 ]]; then
+        reduction=$(awk "BEGIN {pc=($before-$after)*100/$before; printf \"%.1f\", pc}")
+        echo "📊 Previous: ${before}B → Now: ${after}B"
+        echo "💾 Size change: ${reduction}%"
+    else
+        echo "📊 Size: ${after}B"
+    fi
+
+done
+
+echo ""
+echo "--------------------------------------"
+echo "✅ lib binaries builds completed! 🆗"

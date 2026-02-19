@@ -32,7 +32,7 @@ def get_root_dir():
 
 ROOT_DIR = get_root_dir()
 BIN_DIR = os.path.join(ROOT_DIR, "bin")
-LIB_DIR = os.path.join(ROOT_DIR, "gui", "lib")
+LIB_DIR = os.path.join(ROOT_DIR, "lib")
 
 SSHX_BIN = os.path.join(BIN_DIR, "sshx")
 SSHX_KEY = os.path.join(BIN_DIR, "sshx-key")

@@ -3,7 +3,7 @@ set -euo pipefail
 IFS=$'\n\t'
 
 APP_NAME="sshx-gui"
-ROOT_DIR="$(cd .. && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUI_DIR="$ROOT_DIR/gui"
 VENV_DIR="$ROOT_DIR/.venv"
 
@@ -134,7 +134,7 @@ run_cmd pyinstaller \
   --hidden-import=gi.repository.Vte \
   --collect-all gi \
   --add-data "../bin:bin" \
-  --add-data "lib:gui/lib" \
+  --add-data "../lib:lib" \
   easy-ssh-gui.py
 
 ok "Build complete!"
