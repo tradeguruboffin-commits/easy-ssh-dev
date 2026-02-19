@@ -30,7 +30,7 @@ mkdir -p "$OUTPUT_DIR"
 # 3. Go Module Setup
 if [ ! -f "go.mod" ]; then
     echo -e "${BLUE}⚙️ Initializing Go module...${NC}"
-    go mod init github.com/sumit/sshx &>/dev/null
+    go mod init github.com/tradeguruboffin-commits/easy-ssh-dev &>/dev/null
     go mod tidy &>/dev/null
 fi
 
