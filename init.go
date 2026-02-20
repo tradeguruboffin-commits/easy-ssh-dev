@@ -11,6 +11,7 @@ import (
 var binaries = []string{
 	"bin/sshx",
 	"bin/sshx-key",
+	"bin/sshx-stream",
 	"lib/sshx-cpy",
 	"lib/sshx-reset",
 	"lib/git-auth",

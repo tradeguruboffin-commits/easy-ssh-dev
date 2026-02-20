@@ -121,6 +121,7 @@ run mkdir -p "$LIB"
 run rm -f "$BIN/sshx" \
            "$PROJECT_ROOT/sshx-dev" \
            "$BIN/sshx-key" \
+           "$BIN/sshx-stream" \
            "$GUI/sshx-gui" \
            "$LIB/git-auth" \
            "$LIB/sshx-cpy" \
@@ -184,6 +185,7 @@ echo "🔍 Verifying build artifacts..."
 artifacts=(
   "$BIN/sshx"
   "$BIN/sshx-key"
+  "$BIN/sshx-stream"
   "$GUI/sshx-gui"
   "$LIB/git-auth"
   "$LIB/sshx-reset"
