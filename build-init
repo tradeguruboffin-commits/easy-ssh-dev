@@ -8,8 +8,8 @@ OUTPUT_BIN="$APP_NAME"
 
 echo "🔨 Building $APP_NAME..."
 
-go build -o "$OUTPUT_BIN" "$SOURCE_FILE"
-
+# Build command
+CGO_ENABLED=0 go build -ldflags="-s -w" -o "$OUTPUT_BIN" "$SOURCE_FILE"
 chmod +x "$OUTPUT_BIN"
 
 echo "✅ Build complete!"

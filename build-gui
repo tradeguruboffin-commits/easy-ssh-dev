@@ -3,9 +3,9 @@ set -euo pipefail
 IFS=$'\n\t'
 
 APP_NAME="sshx-gui"
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GUI_DIR="$ROOT_DIR/gui"
-VENV_DIR="$ROOT_DIR/.venv"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GUI_DIR="$PROJECT_ROOT/gui"
+VENV_DIR="$PROJECT_ROOT/.venv"
 
 RED="\e[31m"; GREEN="\e[32m"; YELLOW="\e[33m"; BLUE="\e[34m"; NC="\e[0m"
 log() { echo -e "${BLUE}➜${NC} $*"; }
@@ -32,7 +32,7 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-run_cmd() {
+run() {
     if [[ "$DRY_RUN" == true ]]; then
         echo -e "${YELLOW}[DRY-RUN]${NC} $*"
     else
@@ -41,7 +41,41 @@ run_cmd() {
     fi
 }
 
-# ---------------- OS & Arch Detect ----------------
+# -------------------------------------------------
+# 📦 Python Detection
+# -------------------------------------------------
+echo "📦 Checking build dependencies..."
+echo "🔎 Detecting usable Python interpreter..."
+
+PYTHON_BIN=""
+
+if command -v python3 >/dev/null 2>&1; then
+  if python3 -c 'import sys; exit(0 if sys.version_info >= (3,8) else 1)' 2>/dev/null; then
+    if python3 -m venv --help >/dev/null 2>&1; then
+      PYTHON_BIN="python3"
+    fi
+  fi
+fi
+
+if [[ -z "$PYTHON_BIN" ]] && command -v python >/dev/null 2>&1; then
+  if python -c 'import sys; exit(0 if sys.version_info >= (3,8) else 1)' 2>/dev/null; then
+    if python -m venv --help >/dev/null 2>&1; then
+      PYTHON_BIN="python"
+    fi
+  fi
+fi
+
+if [[ -z "$PYTHON_BIN" ]]; then
+  echo "❌ No usable Python 3.8+ with venv found."
+  exit 1
+fi
+
+echo "✅ Using $PYTHON_BIN ($($PYTHON_BIN --version))"
+echo "✅ All required dependencies found."
+
+# -------------------------------------------------
+# 🖥 OS Detection
+# -------------------------------------------------
 OS=""
 PM=""
 SUDO=""
@@ -53,6 +87,7 @@ case "$ARCH" in
     i?86) ARCH_TAG="x86";;
     *) ARCH_TAG="$ARCH";;
 esac
+
 log "Detected architecture: $ARCH_TAG"
 
 if [[ -n "${TERMUX_VERSION:-}" ]]; then
@@ -66,14 +101,16 @@ elif command -v pacman >/dev/null 2>&1; then
 elif command -v apk >/dev/null 2>&1; then
     OS="alpine"; PM="apk"
 else
-    err "Unsupported OS. GTK+VTE dev packages may need manual install."
+    err "Unsupported OS."
     exit 1
 fi
 
 [[ "$EUID" -ne 0 && -x "$(command -v sudo)" ]] && SUDO="sudo"
 log "Detected OS: $OS"
 
-# ---------------- GTK + VTE Check ----------------
+# -------------------------------------------------
+# GTK + VTE Check
+# -------------------------------------------------
 check_gtk_vte() {
     local MISSING=()
     for lib in gtk+-3.0 vte-2.91; do
@@ -84,46 +121,53 @@ check_gtk_vte() {
             ok "$lib found"
         fi
     done
+
     if [[ ${#MISSING[@]} -gt 0 ]]; then
-        log "Attempting to install missing GTK/VTE dev packages..."
+        log "Installing missing GTK/VTE packages..."
         case "$OS" in
-            debian) run_cmd $SUDO apt install -y libgtk-3-dev libvte-2.91-dev ;;
-            fedora) run_cmd $SUDO dnf install -y gtk3-devel vte291-devel ;;
-            arch)   run_cmd $SUDO pacman -Syu --noconfirm gtk3 vte3 ;;
-            alpine) run_cmd $SUDO apk add gtk+3.0-dev vte-dev ;;
-            termux) run_cmd pkg install -y gtk3 vte ;;
+            debian) run $SUDO apt install -y libgtk-3-dev libvte-2.91-dev ;;
+            fedora) run $SUDO dnf install -y gtk3-devel vte291-devel ;;
+            arch)   run $SUDO pacman -Syu --noconfirm gtk3 vte3 ;;
+            alpine) run $SUDO apk add gtk+3.0-dev vte-dev ;;
+            termux) run pkg install -y gtk3 vte ;;
         esac
     fi
 }
 
-# ---------------- Venv Setup ----------------
-if [[ ! -d "$VENV_DIR" ]]; then
-    run_cmd python3 -m  venv --system-site-packages "$VENV_DIR"
-fi
-source "$VENV_DIR/bin/activate"
-
-run_cmd pip install --upgrade pip setuptools wheel
-
-run_cmd pip install --force-reinstall pyinstaller==6.13.0
-
-# Add system site-packages for GTK/GObject
-SITE_PACKAGES="$VENV_DIR/lib/python$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/site-packages"
-mkdir -p "$SITE_PACKAGES"
-SYS_PYTHON=$(python3 -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
-echo "$SYS_PYTHON" > "$SITE_PACKAGES/system.pth"
-ok "System site-packages added: $SYS_PYTHON"
-
-# ---------------- Check & Install Dev Packages ----------------
 check_gtk_vte
 
-# ---------------- Clean old builds ----------------
+# -------------------------------------------------
+# 🐍 Virtual Environment
+# -------------------------------------------------
+run rm -rf "$VENV_DIR"
+
+run $PYTHON_BIN -m venv --system-site-packages "$VENV_DIR"
+
+if [[ "$DRY_RUN" == false ]]; then
+    source "$VENV_DIR/bin/activate"
+fi
+
+run pip install --upgrade pip setuptools wheel
+run pip install --force-reinstall pyinstaller==6.13.0
+
+# Add system site-packages
+SITE_PACKAGES="$VENV_DIR/lib/python$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')/site-packages"
+mkdir -p "$SITE_PACKAGES"
+SYS_PYTHON=$(python -c "import sysconfig; print(sysconfig.get_paths()['purelib'])")
+echo "$SYS_PYTHON" > "$SITE_PACKAGES/system.pth"
+
+# -------------------------------------------------
+# 🧹 Clean old builds
+# -------------------------------------------------
 log "Cleaning old builds..."
-run_cmd rm -rf "$GUI_DIR/build" "$GUI_DIR/dist" "$GUI_DIR/$APP_NAME.spec"
+run rm -rf "$GUI_DIR/build" "$GUI_DIR/dist" "$GUI_DIR/$APP_NAME.spec"
 cd "$GUI_DIR"
 
-# ---------------- Build GUI ----------------
-log "Building GUI for $ARCH_TAG..."
-run_cmd pyinstaller \
+# -------------------------------------------------
+# 🚀 Build GUI
+# -------------------------------------------------
+log "Building GUI..."
+run pyinstaller \
   --noconfirm \
   --onedir \
   --name "$APP_NAME" \
@@ -137,5 +181,35 @@ run_cmd pyinstaller \
   --add-data "../lib:lib" \
   easy-ssh-gui.py
 
-ok "Build complete!"
-ok "Output: gui/dist/$APP_NAME"
+# -------------------------------------------------
+# 📦 Move binaries
+# -------------------------------------------------
+echo "📦 Moving gui binaries..."
+
+if [[ "$DRY_RUN" == false ]]; then
+  if [[ -f "$GUI_DIR/dist/$APP_NAME/$APP_NAME" ]]; then
+    run mv -f "$GUI_DIR/dist/$APP_NAME/$APP_NAME" "$GUI_DIR/"
+    [[ -d "$GUI_DIR/dist/$APP_NAME/_internal" ]] && \
+      run mv -f "$GUI_DIR/dist/$APP_NAME/_internal" "$GUI_DIR/"
+  else
+    echo "❌ GUI build failed — binary missing."
+    exit 1
+  fi
+else
+  echo "➜ mv -f $GUI_DIR/dist/$APP_NAME/$APP_NAME $GUI_DIR/"
+  echo "➜ mv -f $GUI_DIR/dist/$APP_NAME/_internal $GUI_DIR/"
+fi
+
+run rm -rf "$GUI_DIR/dist" "$GUI_DIR/build" "$GUI_DIR/$APP_NAME.spec"
+
+ok "Build complete → gui/$APP_NAME"
+
+# -------------------------------------------------
+# 🧼 Cleanup
+# -------------------------------------------------
+echo "🧼 Cleaning virtual environment..."
+
+deactivate 2>/dev/null || true
+run rm -rf "$VENV_DIR"
+
+ok "All done successfully 🎉"

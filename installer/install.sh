@@ -115,8 +115,17 @@ echo "----------------------------------------"
 # ---------------- Version Checks ----------------
 
 check_python() {
-  command -v python3 >/dev/null || return 1
-  python3 - <<EOF
+  local py_bin=""
+
+  if command -v python3 >/dev/null 2>&1; then
+    py_bin="python3"
+  elif command -v python >/dev/null 2>&1; then
+    py_bin="python"
+  else
+    return 1
+  fi
+
+  "$py_bin" - <<EOF
 import sys
 sys.exit(0 if sys.version_info >= ($PY_MIN_MAJOR,$PY_MIN_MINOR) else 1)
 EOF

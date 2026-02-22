@@ -13,6 +13,7 @@ IFS=$'\n\t'
 # ---------------- Safe Argument Parser ----------------
 
 DRY_RUN=false
+CLI_ONLY=false
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
@@ -21,8 +22,14 @@ parse_args() {
         DRY_RUN=true
         shift
         ;;
+      --cli)
+        CLI_ONLY=true
+        shift
+        ;;
       --help|-h)
-        echo "Usage: $0 [--dry-run]"
+        echo "Usage: $0 [--dry-run] [--cli]"
+        echo "  --dry-run   No changes will be made"
+        echo "  --cli       Skip GUI build"
         exit 0
         ;;
       --*=*)
@@ -53,10 +60,14 @@ if [[ "$DRY_RUN" == true ]]; then
   echo "🧪 Running in DRY RUN mode — no changes will be made."
 fi
 
+if [[ "$CLI_ONLY" == true ]]; then
+  echo "⚙️  CLI only mode — GUI build will be skipped."
+fi
+
 run() {
   echo "➜ $*"
-  if [[ "$DRY_RUN" == false ]]; then
-    command "$@"
+  if [[ "$DRY_RUN" != true ]]; then
+    "$@"
   fi
 }
 
@@ -81,36 +92,8 @@ need() {
 echo "📦 Checking build dependencies..."
 
 need go
-need python3
 
-echo "🔎 Detecting usable Python interpreter..."
-
-PYTHON_BIN=""
-
-if command -v python3 >/dev/null 2>&1; then
-  if python3 -c 'import sys; exit(0 if sys.version_info >= (3,8) else 1)' 2>/dev/null; then
-    if python3 -m venv --help >/dev/null 2>&1; then
-      PYTHON_BIN="python3"
-    fi
-  fi
-fi
-
-if [[ -z "$PYTHON_BIN" ]] && command -v python >/dev/null 2>&1; then
-  if python -c 'import sys; exit(0 if sys.version_info >= (3,8) else 1)' 2>/dev/null; then
-    if python -m venv --help >/dev/null 2>&1; then
-      PYTHON_BIN="python"
-    fi
-  fi
-fi
-
-if [[ -z "$PYTHON_BIN" ]]; then
-  echo "❌ No usable Python 3.8+ with venv found."
-  exit 1
-fi
-
-echo "✅ Using $PYTHON_BIN ($( $PYTHON_BIN --version ))"
-
-echo "✅ All required dependencies found."
+echo "✅ required dependencies found."
 
 # ---------------- Clean Old Binaries ----------------
 
@@ -118,15 +101,26 @@ echo "🧹 Removing old binaries..."
 
 run mkdir -p "$BIN"
 run mkdir -p "$LIB"
-run rm -f "$BIN/sshx" \
-           "$PROJECT_ROOT/sshx-dev" \
-           "$BIN/sshx-key" \
-           "$BIN/scpx" \
-           "$GUI/sshx-gui" \
-           "$LIB/git-auth" \
-           "$LIB/sshx-cpy" \
-           "$LIB/sshx-reset"
-run rm -rf "$GUI/_internal"
+
+if [[ "$CLI_ONLY" == false ]]; then
+  run rm -f "$BIN/sshx" \
+             "$PROJECT_ROOT/sshx-dev" \
+             "$BIN/sshx-key" \
+             "$BIN/scpx" \
+             "$GUI/sshx-gui" \
+             "$LIB/git-auth" \
+             "$LIB/sshx-cpy" \
+             "$LIB/sshx-reset"
+  run rm -rf "$GUI/_internal"
+else
+  run rm -f "$BIN/sshx" \
+             "$PROJECT_ROOT/sshx-dev" \
+             "$BIN/sshx-key" \
+             "$BIN/scpx" \
+             "$LIB/git-auth" \
+             "$LIB/sshx-cpy" \
+             "$LIB/sshx-reset"
+fi
 
 # ---------------- Build Go Binaries ----------------
 
@@ -137,61 +131,36 @@ run ./build-bin
 run ./build-lib
 run ./build-init
 
-# ---------------- Python Build ----------------
+# ---------------- GUI Build ----------------
 
-echo "🐍 Entering virtual environment..."
-
-cd "$PROJECT_ROOT"
-run rm -rf .venv
-
-run ./build-gui
-cd "$PROJECT_ROOT"
-
-echo "📦 Moving gui binaries..."
-
-if [[ "$DRY_RUN" == false ]]; then
-  if [[ -f "$GUI/dist/sshx-gui/sshx-gui" ]]; then
-    run mv -f "$GUI/dist/sshx-gui/sshx-gui" "$GUI/"
-    [[ -d "$GUI/dist/sshx-gui/_internal" ]] && \
-      run mv -f "$GUI/dist/sshx-gui/_internal" "$GUI/"
-  else
-    echo "❌ GUI build failed — binary missing."
-    exit 1
-  fi
+if [[ "$CLI_ONLY" == false ]]; then
+  echo "Starting GUI Building..."
+  run ./build-gui
+  cd "$PROJECT_ROOT"
 else
-  echo "➜ mv -f $GUI/dist/sshx-gui/sshx-gui $GUI/"
-  echo "➜ mv -f $GUI/dist/sshx-gui/_internal $GUI/"
+  echo "⏭ Skipping GUI build (--cli mode)"
 fi
 
-run rm -rf "$GUI/dist" "$GUI/build" "$GUI/sshx-gui.spec"
-
-# ---------------- Cleanup ----------------
-
-echo "🧼 Cleaning virtual environment..."
-
-if [[ -n "${VIRTUAL_ENV:-}" ]]; then
-    run deactivate || true
-fi
-
-if [[ "$DRY_RUN" == false ]]; then
-  deactivate 2>/dev/null || true
-fi
-
-run rm -rf "$PROJECT_ROOT/.venv"
+# ---------------- Artifacts ----------------
 
 echo ""
 echo "🔍 Verifying build artifacts..."
 
-artifacts=(
+common_artifacts=(
   "$BIN/sshx"
   "$BIN/sshx-key"
   "$BIN/scpx"
-  "$GUI/sshx-gui"
   "$LIB/git-auth"
-  "$LIB/sshx-reset"
   "$LIB/sshx-cpy"
+  "$LIB/sshx-reset"
   "$PROJECT_ROOT/sshx-dev"
 )
+
+if [[ "$CLI_ONLY" == false ]]; then
+  artifacts=("${common_artifacts[@]}" "$GUI/sshx-gui")
+else
+  artifacts=("${common_artifacts[@]}")
+fi
 
 if [[ "$DRY_RUN" == false ]]; then
   for file in "${artifacts[@]}"; do
@@ -199,7 +168,6 @@ if [[ "$DRY_RUN" == false ]]; then
       echo "❌ Missing artifact: $file"
       exit 1
     fi
-
     if [[ ! -s "$file" ]]; then
       echo "❌ Artifact exists but empty: $file"
       exit 1
@@ -233,5 +201,9 @@ else
 fi
 
 echo ""
-echo "✅ SSHX CLI + GUI installed successfully!"
+if [[ "$CLI_ONLY" == false ]]; then
+  echo "✅ SSHX CLI + GUI installed successfully!"
+else
+  echo "✅ SSHX CLI installed successfully!"
+fi
 echo ""

@@ -32,6 +32,9 @@ if [ ! -f "go.mod" ]; then
     go mod tidy &>/dev/null
 fi
 
+echo -e "\n${YELLOW}${BOLD}🚀 Starting unified build...${NC}"
+echo -e "\n${YELLOW}📦 Using -trimpath -ldflags='-s -w'${NC}"
+echo -e "--------------------------------------"
 # ---------------- Build Loop ----------------
 for APP in "${!APPS[@]}"; do
     SRC="${APPS[$APP]}"
@@ -67,4 +70,4 @@ done
 echo -e "\n📦 Install all binaries system-wide (optional):"
 echo -e "  sudo cp ./bin/* /usr/local/bin/"
 
-echo -e "\n${GREEN}${BOLD}⚙️ All Builds Completed!${NC}"
+echo -e "\n${GREEN}${BOLD}⚙️ bin/* binaries created successfully! 🆗${NC}"

@@ -34,10 +34,11 @@ ROOT_DIR = get_root_dir()
 BIN_DIR = os.path.join(ROOT_DIR, "bin")
 LIB_DIR = os.path.join(ROOT_DIR, "lib")
 
-SSHX_BIN = os.path.join(BIN_DIR, "sshx")
-SSHX_KEY = os.path.join(BIN_DIR, "sshx-key")
-SSHX_CPY = os.path.join(LIB_DIR, "sshx-cpy")
-GIT_AUTH = os.path.join(LIB_DIR, "git-auth")
+SSHX_BIN  = os.path.join(BIN_DIR, "sshx")
+SSHX_KEY  = os.path.join(BIN_DIR, "sshx-key")
+SCPX_BIN  = os.path.join(BIN_DIR, "scpx")
+SSHX_CPY  = os.path.join(LIB_DIR, "sshx-cpy")
+GIT_AUTH  = os.path.join(LIB_DIR, "git-auth")
 SSHX_RESET = os.path.join(LIB_DIR, "sshx-reset")
 
 
@@ -52,17 +53,12 @@ class TerminalTab(Gtk.Box):
         self.terminal = Vte.Terminal()
         self.pack_start(self.terminal, True, True, 0)
 
-        # Terminal options
         self.terminal.set_mouse_autohide(False)
         self.terminal.set_rewrap_on_resize(True)
 
-        # Mouse right-click menu
         self.terminal.connect("button-press-event", self.on_right_click)
-
-        # Keyboard shortcuts (Ctrl+Shift for copy/paste/select all)
         self.terminal.connect("key-press-event", self.on_key_press)
 
-        # Spawn shell or command
         self.spawn(command)
         self.show_all()
 
@@ -113,11 +109,10 @@ class TerminalTab(Gtk.Box):
     # Keyboard shortcuts
     # --------------------------------------------------
     def on_key_press(self, widget, event):
-        ctrl = (event.state & Gdk.ModifierType.CONTROL_MASK)
+        ctrl  = (event.state & Gdk.ModifierType.CONTROL_MASK)
         shift = (event.state & Gdk.ModifierType.SHIFT_MASK)
-        key = Gdk.keyval_name(event.keyval).lower()
+        key   = Gdk.keyval_name(event.keyval).lower()
 
-        # Ctrl+Shift shortcuts for terminal copy/paste/select all
         if ctrl and shift:
             if key == "c":
                 self.terminal.copy_clipboard()
@@ -151,20 +146,23 @@ class SSHXGUI(Gtk.Window):
         main_box.pack_start(self.notebook, True, True, 0)
 
         # Core Buttons
-        self.add_btn(toolbar, "Connect", self.connect_popup)
-        self.add_btn(toolbar, "List", lambda b: self.run_cmd([SSHX_BIN, "--list"], "List"))
-        self.add_btn(toolbar, "Doctor", lambda b: self.run_cmd([SSHX_BIN, "--doctor"], "Doctor"))
-        self.add_btn(toolbar, "Version", lambda b: self.run_cmd([SSHX_BIN, "--version"], "Version"))
-        self.add_btn(toolbar, "Help", lambda b: self.run_cmd([SSHX_BIN, "--help"], "Help"))
+        self.add_btn(toolbar, "Connect",          self.connect_popup)
+        self.add_btn(toolbar, "List",             lambda b: self.run_cmd([SSHX_BIN, "--list"],    "List"))
+        self.add_btn(toolbar, "Doctor",           lambda b: self.run_cmd([SSHX_BIN, "--doctor"],  "Doctor"))
+        self.add_btn(toolbar, "Version",          lambda b: self.run_cmd([SSHX_BIN, "--version"], "Version"))
+        self.add_btn(toolbar, "Help",             lambda b: self.run_cmd([SSHX_BIN, "--help"],    "Help"))
 
         # Advanced Buttons
-        self.add_btn(toolbar, "Gen Key", self.gen_key_popup)
+        self.add_btn(toolbar, "Gen Key",          self.gen_key_popup)
         self.add_btn(toolbar, "Copy Fingerprint", self.copy_fingerprint)
-        self.add_btn(toolbar, "Git Auth", lambda b: self.run_cmd([GIT_AUTH], "GitAuth"))
-        self.add_btn(toolbar, "SSHX Copy", self.sshx_copy_popup)
-        self.add_btn(toolbar, "SSHX Reset", lambda b: self.run_cmd([SSHX_RESET], "Reset"))
+        self.add_btn(toolbar, "Git Auth",         lambda b: self.run_cmd([GIT_AUTH],    "GitAuth"))
+        self.add_btn(toolbar, "SSHX Copy",        self.sshx_copy_popup)
+        self.add_btn(toolbar, "SSHX Reset",       lambda b: self.run_cmd([SSHX_RESET], "Reset"))
 
-        self.add_btn(toolbar, "Close Tab", self.close_tab)
+        # SCPX Button
+        self.add_btn(toolbar, "SCPX",             self.scpx_popup)
+
+        self.add_btn(toolbar, "Close Tab",        self.close_tab)
 
         self.show_all()
 
@@ -216,7 +214,7 @@ class SSHXGUI(Gtk.Window):
     def simple_input_popup(self, title, label_text, callback):
         dialog = Gtk.Dialog(title=title, transient_for=self, flags=0)
         dialog.add_buttons("Cancel", Gtk.ResponseType.CANCEL,
-                           "OK", Gtk.ResponseType.OK)
+                           "OK",     Gtk.ResponseType.OK)
 
         box = dialog.get_content_area()
 
@@ -237,6 +235,104 @@ class SSHXGUI(Gtk.Window):
         dialog.destroy()
 
     # --------------------------------------------------
+    # SCPX Popup
+    # --------------------------------------------------
+    def scpx_popup(self, button):
+        dialog = Gtk.Dialog(title="SCPX File Transfer", transient_for=self, flags=0)
+        dialog.add_buttons("Cancel",   Gtk.ResponseType.CANCEL,
+                           "Transfer", Gtk.ResponseType.OK)
+        dialog.set_default_size(520, 320)
+
+        box = dialog.get_content_area()
+        box.set_spacing(8)
+
+        # ---- Mode: Push / Pull ----
+        mode_box = Gtk.Box(spacing=10)
+        mode_label = Gtk.Label(label="Mode:")
+        push_radio = Gtk.RadioButton.new_with_label(None, "Push  (local → remote)")
+        pull_radio  = Gtk.RadioButton.new_with_label_from_widget(push_radio, "Pull  (remote → local)")
+        mode_box.pack_start(mode_label,  False, False, 5)
+        mode_box.pack_start(push_radio,  False, False, 0)
+        mode_box.pack_start(pull_radio,  False, False, 0)
+        box.pack_start(mode_box, False, False, 5)
+
+        # ---- user@host:port ----
+        host_box   = Gtk.Box(spacing=6)
+        host_label = Gtk.Label(label="user@host:port:")
+        host_label.set_width_chars(16)
+        host_label.set_xalign(0)
+        host_entry = Gtk.Entry()
+        host_entry.set_placeholder_text("user@192.168.1.1:22")
+        host_box.pack_start(host_label, False, False, 5)
+        host_box.pack_start(host_entry, True,  True,  0)
+        box.pack_start(host_box, False, False, 5)
+
+        # ---- Local path (file chooser) ----
+        local_box    = Gtk.Box(spacing=6)
+        local_label  = Gtk.Label(label="Local path:")
+        local_label.set_width_chars(16)
+        local_label.set_xalign(0)
+        local_entry  = Gtk.Entry()
+        local_entry.set_placeholder_text("/home/user/file.txt  or  /home/user/folder/")
+        local_browse = Gtk.Button(label="Browse…")
+
+        def browse_local(b):
+            fc = Gtk.FileChooserDialog(
+                title="Select Local File or Folder",
+                transient_for=dialog,
+                action=Gtk.FileChooserAction.OPEN
+            )
+            fc.add_buttons("Cancel", Gtk.ResponseType.CANCEL,
+                           "Select", Gtk.ResponseType.OK)
+            # Allow selecting folders too
+            fc.set_action(Gtk.FileChooserAction.OPEN)
+            if fc.run() == Gtk.ResponseType.OK:
+                local_entry.set_text(fc.get_filename())
+            fc.destroy()
+
+        local_browse.connect("clicked", browse_local)
+        local_box.pack_start(local_label,  False, False, 5)
+        local_box.pack_start(local_entry,  True,  True,  0)
+        local_box.pack_start(local_browse, False, False, 0)
+        box.pack_start(local_box, False, False, 5)
+
+        # ---- Remote path ----
+        remote_box   = Gtk.Box(spacing=6)
+        remote_label = Gtk.Label(label="Remote path:")
+        remote_label.set_width_chars(16)
+        remote_label.set_xalign(0)
+        remote_entry = Gtk.Entry()
+        remote_entry.set_placeholder_text("/remote/dir/  or  /remote/file.txt")
+        remote_box.pack_start(remote_label, False, False, 5)
+        remote_box.pack_start(remote_entry, True,  True,  0)
+        box.pack_start(remote_box, False, False, 5)
+
+        dialog.show_all()
+        response = dialog.run()
+
+        if response == Gtk.ResponseType.OK:
+            mode   = "push" if push_radio.get_active() else "pull"
+            host   = host_entry.get_text().strip()
+            local  = local_entry.get_text().strip()
+            remote = remote_entry.get_text().strip()
+
+            if not host or not local or not remote:
+                self.show_error("সব field পূরণ করো।")
+                dialog.destroy()
+                return
+
+            # scpx push user@host:port <local_path> <remote_dir>
+            # scpx pull user@host:port <remote_path> <local_dir>
+            if mode == "push":
+                cmd = [SCPX_BIN, "push", host, local, remote]
+            else:
+                cmd = [SCPX_BIN, "pull", host, remote, local]
+
+            self.run_cmd(cmd, f"SCPX {mode} → {host}")
+
+        dialog.destroy()
+
+    # --------------------------------------------------
     # Fingerprint
     # --------------------------------------------------
     def copy_fingerprint(self, button):
@@ -244,7 +340,6 @@ class SSHXGUI(Gtk.Window):
         if not os.path.exists(pubkey):
             self.show_error("Public key not found.")
             return
-
         self.new_tab(["ssh-keygen", "-lf", pubkey], "Fingerprint")
 
     # --------------------------------------------------

@@ -18,6 +18,12 @@ var binaries = []string{
 	"gui/sshx-gui",
 }
 
+// uninstall করার সময় দুটো জায়গাই চেক করবে
+var allTargetDirs = []string{
+	"/usr/local/bin",
+	filepath.Join(os.Getenv("HOME"), ".local/bin"),
+}
+
 /* ===========================
    Color Output
 =========================== */
@@ -30,17 +36,60 @@ const (
 	Reset = "\033[0m"
 )
 
-func info(msg string) {
-	fmt.Println(Blue + Bold + msg + Reset)
-}
-
-func success(msg string) {
-	fmt.Println(Green + "✔ " + msg + Reset)
-}
-
+func info(msg string)    { fmt.Println(Blue + Bold + msg + Reset) }
+func success(msg string) { fmt.Println(Green + "✔ " + msg + Reset) }
 func fail(msg string) {
 	fmt.Println(Red + "✘ " + msg + Reset)
 	os.Exit(1)
+}
+
+/* ===========================
+   Privilege Detection
+=========================== */
+
+var (
+	useSudo   bool
+	targetDir string
+)
+
+func init() {
+
+	// Root user
+	if os.Geteuid() == 0 {
+		useSudo = false
+		targetDir = "/usr/local/bin"
+		return
+	}
+
+	// sudo available
+	if _, err := exec.LookPath("sudo"); err == nil {
+		useSudo = true
+		targetDir = "/usr/local/bin"
+		return
+	}
+
+	// Fallback (proot / termux / no sudo)
+	useSudo = false
+	targetDir = filepath.Join(os.Getenv("HOME"), ".local/bin")
+}
+
+func runCommand(name string, args ...string) error {
+	if useSudo {
+		args = append([]string{name}, args...)
+		name = "sudo"
+	}
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+// privilege-aware remove — system path হলে sudo, user path হলে সরাসরি
+func removeFile(path string) error {
+	if filepath.Dir(path) == "/usr/local/bin" {
+		return runCommand("rm", "-f", path)
+	}
+	return os.Remove(path)
 }
 
 /* ===========================
@@ -70,7 +119,7 @@ func usage() {
 }
 
 /* ===========================
-   Project Root Detection
+   Project Root
 =========================== */
 
 func projectRoot() string {
@@ -78,16 +127,8 @@ func projectRoot() string {
 	if err != nil {
 		log.Fatal("Cannot detect executable path:", err)
 	}
-
 	exePath, _ := filepath.EvalSymlinks(exe)
-	dir := filepath.Dir(exePath)
-
-	// If binary is inside /usr/local/bin (symlink install case)
-	if filepath.Base(dir) == "bin" {
-		return filepath.Dir(dir)
-	}
-
-	return dir
+	return filepath.Dir(exePath)
 }
 
 /* ===========================
@@ -98,9 +139,20 @@ func install() {
 	info("Installing esey-ssh-dev...")
 
 	baseDir := projectRoot()
-	targetDir := "/usr/local/bin"
+
+	// targetDir না থাকলে তৈরি করো (proot fallback এর জন্য)
+	os.MkdirAll(targetDir, 0755)
+
+	guiPath := filepath.Join(baseDir, "gui/sshx-gui")
+	guiExists := fileExists(guiPath)
 
 	for _, bin := range binaries {
+
+		if bin == "gui/sshx-gui" && !guiExists {
+			info("GUI binary not found → skipping GUI install")
+			continue
+		}
+
 		src := filepath.Join(baseDir, bin)
 		name := filepath.Base(bin)
 		dest := filepath.Join(targetDir, name)
@@ -111,39 +163,56 @@ func install() {
 
 		removeIfExists(dest)
 
-		cmd := exec.Command("sudo", "ln", "-s", src, dest)
-		if err := cmd.Run(); err != nil {
+		if err := runCommand("ln", "-s", src, dest); err != nil {
 			fail("Failed linking " + name + ": " + err.Error())
 		}
 
 		success(name + " linked → " + dest)
 	}
 
-	createDesktopEntry(baseDir)
-	updateDesktopDatabase()
+	if guiExists {
+		createDesktopEntry(baseDir)
+		updateDesktopDatabase()
+	} else {
+		info("GUI not present → skipping desktop entry")
+	}
 
 	success("Installation complete 🎉")
+	info("Installed to: " + targetDir)
 }
 
 /* ===========================
    Uninstall
+   — দুটো জায়গাই চেক করে, যেখানে পাবে মুছবে
 =========================== */
 
 func uninstall() {
 	info("Uninstalling esey-ssh-dev...")
 
-	targetDir := "/usr/local/bin"
+	removedAny := false
 
 	for _, bin := range binaries {
 		name := filepath.Base(bin)
-		dest := filepath.Join(targetDir, name)
 
-		if fileExists(dest) {
-			exec.Command("sudo", "rm", "-f", dest).Run()
-			success(name + " removed")
+		for _, dir := range allTargetDirs {
+			dest := filepath.Join(dir, name)
+
+			if fileExists(dest) {
+				if err := removeFile(dest); err != nil {
+					info("Could not remove " + dest + ": " + err.Error())
+				} else {
+					success(name + " removed from " + dir)
+					removedAny = true
+				}
+			}
 		}
 	}
 
+	if !removedAny {
+		info("No installed binaries found → nothing to remove")
+	}
+
+	// Desktop entry
 	desktopFile := filepath.Join(
 		os.Getenv("HOME"),
 		".local/share/applications/sshx-gui.desktop",
@@ -152,6 +221,8 @@ func uninstall() {
 	if fileExists(desktopFile) {
 		os.Remove(desktopFile)
 		success("Desktop entry removed")
+	} else {
+		info("No desktop entry found → nothing to remove")
 	}
 
 	updateDesktopDatabase()
@@ -171,7 +242,7 @@ func fileExists(path string) bool {
 func removeIfExists(path string) {
 	if fileExists(path) {
 		info("Removing existing: " + path)
-		exec.Command("sudo", "rm", "-rf", path).Run()
+		removeFile(path)
 	}
 }
 
@@ -219,6 +290,5 @@ func updateDesktopDatabase() {
 		os.Getenv("HOME"),
 		".local/share/applications",
 	)
-
 	exec.Command("update-desktop-database", desktopDir).Run()
 }
