@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+echo "🕒 $(date '+%A, %d %B %Y | %I:%M:%S %p')"
 # =========================================================
 # easy-ssh-dev — Production Dependency Installer
 # Linux + Proot Stable Edition
