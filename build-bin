@@ -28,7 +28,7 @@ mkdir -p "$BIN_DIR"
 # Initialize Go module if missing
 if [ ! -f "go.mod" ]; then
     echo -e "${BLUE}⚙️ Initializing Go module...${NC}"
-    go mod init github.com/tradeguruboffin-commits/easy-ssh-dev &>/dev/null
+    go mod init github.com/dev-boffin-io/easy-ssh-dev &>/dev/null
     go mod tidy &>/dev/null
 fi
 

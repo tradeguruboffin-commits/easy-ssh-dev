@@ -1,3 +1,3 @@
-module github.com/tradeguruboffin-commits/easy-ssh-dev
+module github.com/dev-boffin-io/easy-ssh-dev
 
 go 1.24.4
