@@ -343,7 +343,7 @@ class SSHXGUI(Gtk.Window):
         self.add_btn(toolbar, "List",    lambda b: self.run_cmd([SSHX_BIN, "--list"],    "List"))
         self.add_btn(toolbar, "Doctor",  lambda b: self.run_cmd([SSHX_BIN, "--doctor"],  "Doctor"))
         self.add_btn(toolbar, "Version", lambda b: self.run_cmd([SSHX_BIN, "--version"], "Version"))
-        self.add_btn(toolbar, "Help",    lambda b: self.run_cmd([SSHX_BIN, "--help"],    "Help"))
+        self.add_btn(toolbar, "Help",    self.show_help_dialog)
 
         # Vertical separator
         sep = Gtk.Separator(orientation=Gtk.Orientation.VERTICAL)
@@ -449,6 +449,85 @@ class SSHXGUI(Gtk.Window):
             else:
                 self.show_error("Input cannot be empty.")
 
+        dialog.destroy()
+
+    def show_help_dialog(self, button):
+        HELP_TEXT = """\
+┌─────────────────────────────────────────────────────────┐
+│                  SSHX GUI — Command Reference           │
+└─────────────────────────────────────────────────────────┘
+
+━━━ sshx — SSH Connection Manager ━━━━━━━━━━━━━━━━━━━━━━━━
+
+  sshx user@ip:port              Connect (auto key-copy + cache)
+  sshx user@[ipv6]:port          Connect via IPv6
+  sshx --raw user@ip:port        Direct connect — skip cache
+  sshx user@ip:port --remove     Remove host from cache
+
+  sshx --list                    List saved hosts
+  sshx --menu                    Interactive fzf menu
+  sshx --doctor                  Check dependencies
+  sshx --version                 Show version
+
+━━━ sshx-key — GitHub SSH Key Setup ━━━━━━━━━━━━━━━━━━━━━━
+
+  sshx-key user@email.com        Generate key, add to agent,
+                                 copy pubkey to clipboard
+
+━━━ sshx-cpy — Copy SSH Public Key to Remote Host ━━━━━━━━
+
+  sshx-cpy user@host[:port]      Install local pubkey on remote
+
+━━━ scpx — File Transfer over SCP ━━━━━━━━━━━━━━━━━━━━━━━━
+
+  scpx push user@host:port <local_path> <remote_dir>
+  scpx pull user@host:port <remote_path> <local_dir>
+
+━━━ git-auth — GitHub SSH Auth Check ━━━━━━━━━━━━━━━━━━━━━
+
+  git-auth                       Verify GitHub SSH authentication
+
+━━━ sshx-reset — Reset SSH Keys ━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  sshx-reset                     Remove and regenerate SSH keys
+
+━━━ GUI Shortcuts ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Ctrl+Shift+C                   Copy selected text
+  Ctrl+Shift+V                   Paste
+  Ctrl+Shift+A                   Select all
+  Right-click                    Context menu (Copy/Paste/Select All)
+"""
+        dialog = Gtk.Dialog(title="Help — Command Reference", transient_for=self, flags=0)
+        dialog.set_default_size(640, 560)
+        dialog.add_buttons("Close", Gtk.ResponseType.CLOSE)
+
+        box = dialog.get_content_area()
+        box.set_margin_start(16)
+        box.set_margin_end(16)
+        box.set_margin_top(12)
+        box.set_margin_bottom(12)
+
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+        scroll.set_vexpand(True)
+
+        tv = Gtk.TextView()
+        tv.set_editable(False)
+        tv.set_cursor_visible(False)
+        tv.set_wrap_mode(Gtk.WrapMode.NONE)
+        tv.set_monospace(True)
+        tv.get_buffer().set_text(HELP_TEXT)
+        tv.set_margin_start(8)
+        tv.set_margin_end(8)
+        tv.set_margin_top(8)
+        tv.set_margin_bottom(8)
+
+        scroll.add(tv)
+        box.pack_start(scroll, True, True, 0)
+
+        dialog.show_all()
+        dialog.run()
         dialog.destroy()
 
     def gen_key_popup(self, button):
