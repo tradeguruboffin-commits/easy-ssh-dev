@@ -26,6 +26,18 @@ SOURCE_FILE="$SRC_DIR/init.go"
 OUTPUT_BIN="$PROJECT_ROOT/$APP_NAME"
 
 # ==============================
+# PRE BUILD
+# ==============================
+echo -e "${YELLOW}🧹 Cleaning old binary...${NC}"
+
+if [[ -f "$OUTPUT_BIN" ]]; then
+    rm -f "$OUTPUT_BIN"
+    echo -e "${GREEN}✔ Old binary removed${NC}"
+else
+    echo -e "${CYAN}ℹ No previous binary found${NC}"
+fi
+
+# ==============================
 # BUILD
 # ==============================
 echo -e "${BLUE}${BOLD}🔨 Building $APP_NAME...${NC}"
@@ -41,6 +53,7 @@ if CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "$OUTPUT_BIN" "$SOURCE_F
     chmod +x "$OUTPUT_BIN"
     SIZE=$(du -h "$OUTPUT_BIN" | cut -f1)
     BYTES=$(wc -c < "$OUTPUT_BIN")
+
     echo -e "${MAGENTA}--------------------------------------${NC}"
     echo -e "${GREEN}✅ Build complete!${NC}"
     echo -e "   📦 Output : ${BOLD}$OUTPUT_BIN${NC}"

@@ -111,32 +111,6 @@ need go
 
 echo "✅ Required dependencies found."
 
-# ---------------- Clean Old Binaries ----------------
-
-echo "🧹 Removing old binaries..."
-
-run mkdir -p "$BIN"
-
-if [[ "$CLI_ONLY" == false ]]; then
-  run rm -f "$BIN/sshx" \
-             "$BIN/sshx-key" \
-             "$BIN/scpx" \
-             "$BIN/git-auth" \
-             "$BIN/sshx-cpy" \
-             "$BIN/sshx-reset" \
-             "$PROJECT_ROOT/sshx-dev" \
-             "$GUI/sshx-gui"
-  run rm -rf "$GUI/_internal"
-else
-  run rm -f "$BIN/sshx" \
-             "$BIN/sshx-key" \
-             "$BIN/scpx" \
-             "$BIN/git-auth" \
-             "$BIN/sshx-cpy" \
-             "$BIN/sshx-reset" \
-             "$PROJECT_ROOT/sshx-dev"
-fi
-
 # ---------------- Build Go Binaries ----------------
 
 echo "🚀 Building core binaries..."

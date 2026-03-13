@@ -158,7 +158,7 @@ fi
 # 🧹 Clean old builds
 # -------------------------------------------------
 log "Cleaning old builds..."
-run rm -rf "$GUI_DIR/build" "$GUI_DIR/dist" "$GUI_DIR/$APP_NAME.spec"
+run rm -rf "$GUI_DIR/build" "$GUI_DIR/dist" "$GUI_DIR/$APP_NAME.spec" "$GUI_DIR/$APP_NAME" "$GUI_DIR/_internal"
 cd "$GUI_DIR"
 
 # -------------------------------------------------
